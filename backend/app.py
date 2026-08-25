@@ -14,7 +14,7 @@ from backend.celo_client import (
 
 app = FastAPI(
     title="KasiCred Trust Engine",
-    description="Maps human identifiers to on-chain Celo Sepolia trust records.",
+    description="Maps human identifiers to on-chain Celo Sepolia trust records and manages vendor registration.",
 )
 
 app.add_middleware(
@@ -34,8 +34,17 @@ def phone_to_vendor_address(phone_or_tag: str) -> str:
 
 
 # =====================================================================
-# Conversational State & Multilingual Flow
+# Off-Chain In-Memory Storage & Registries
 # =====================================================================
+
+vendor_database: Dict[str, dict] = {
+    "0712345678": {
+        "store_name": "Mama Thabo's Spaza",
+        "phone_number": "0712345678",
+        "market_area": "Randburg Taxi Rank",
+        "category_items": "Fresh produce, snacks, and cold drinks"
+    }
+}
 
 user_sessions: Dict[str, dict] = {}
 
@@ -64,15 +73,23 @@ PROMPTS = {
 }
 
 
+# =====================================================================
+# Request Schemas
+# =====================================================================
+
+class VendorRegistrationPayload(BaseModel):
+    store_name: str
+    phone_number: str
+    market_area: str
+    category_items: str
+
+
 class UnifiedReviewPayload(BaseModel):
-    # Required identifier for the rater or vendor
     phone: str
-    # Survey/chat fields
     message: Optional[str] = None
     media_url: Optional[str] = None
     vendor_name: Optional[str] = "Mama Thabo's Spaza"
     vendor_phone_or_tag: Optional[str] = "0712345678"
-    # Optional direct submission fields (bypasses conversation when provided)
     review_text: Optional[str] = None
     score: Optional[int] = None
 
@@ -91,17 +108,48 @@ def chain_status():
     return verify_connection()
 
 
+@app.post("/vendor/register")
+def register_vendor(payload: VendorRegistrationPayload):
+    clean_phone = payload.phone_number.strip().replace(" ", "").lower()
+    mapped_address = phone_to_vendor_address(clean_phone)
+
+    profile = {
+        "store_name": payload.store_name.strip(),
+        "phone_number": clean_phone,
+        "market_area": payload.market_area.strip(),
+        "category_items": payload.category_items.strip(),
+        "mapped_onchain_address": mapped_address,
+        "qr_payment_uri": f"kasicred://rate/{clean_phone}"
+    }
+
+    vendor_database[clean_phone] = profile
+
+    return {
+        "status": "success",
+        "message": f"Stall '{payload.store_name}' registered successfully!",
+        "profile": profile
+    }
+
+
 @app.get("/vendor/phone/{phone_or_tag}")
 def get_vendor_by_phone(phone_or_tag: str):
-    """Retrieve on-chain trust score using only the vendor's phone number or ID."""
-    vendor_address = phone_to_vendor_address(phone_or_tag)
+    clean_id = phone_or_tag.strip().replace(" ", "").lower()
+    vendor_address = phone_to_vendor_address(clean_id)
+
+    profile = vendor_database.get(clean_id, {
+        "store_name": "Unregistered Stall",
+        "phone_number": clean_id,
+        "market_area": "Unknown",
+        "category_items": "General Merchandise",
+        "mapped_onchain_address": vendor_address
+    })
+
     try:
-        data = get_vendor_summary(vendor_address)
+        onchain_summary = get_vendor_summary(vendor_address)
         return {
-            "identifier": phone_or_tag,
-            "mapped_onchain_address": vendor_address,
+            "profile": profile,
             "contract_address": CONTRACT_ADDRESS,
-            "trust_metrics": data,
+            "trust_metrics": onchain_summary
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -109,11 +157,7 @@ def get_vendor_by_phone(phone_or_tag: str):
 
 @app.post("/review/phone")
 def submit_vendor_review(payload: UnifiedReviewPayload):
-    """
-    Unified review submission endpoint.
-    Handles direct review commits or interactive WhatsApp conversational surveys.
-    """
-    # Direct Submission Path (when score and review_text are directly passed)
+    # Direct Submission Path
     if payload.score is not None and payload.review_text is not None:
         if not (1 <= payload.score <= 5):
             raise HTTPException(status_code=400, detail="Score must be between 1 and 5.")
@@ -145,18 +189,21 @@ def submit_vendor_review(payload: UnifiedReviewPayload):
     clean_message = raw_message.lower()
 
     if phone_key not in user_sessions:
+        target_vendor_phone = (payload.vendor_phone_or_tag or "0712345678").strip().replace(" ", "").lower()
+        registered_vendor = vendor_database.get(target_vendor_phone)
+        display_name = registered_vendor["store_name"] if registered_vendor else (payload.vendor_name or "Mama Thabo's Spaza")
+
         user_sessions[phone_key] = {
             "step": "LANGUAGE_SELECT",
-            "vendor_name": payload.vendor_name or "Mama Thabo's Spaza",
-            "vendor_phone_or_tag": payload.vendor_phone_or_tag or "0712345678",
+            "vendor_name": display_name,
+            "vendor_phone_or_tag": target_vendor_phone,
             "language": "1",
             "score": None,
             "comment": None,
             "issue": None,
         }
-        vendor = user_sessions[phone_key]["vendor_name"]
         return {
-            "reply": PROMPTS["1"]["welcome"].format(vendor=vendor),
+            "reply": PROMPTS["1"]["welcome"].format(vendor=display_name),
             "step": "LANGUAGE_SELECT",
         }
 
