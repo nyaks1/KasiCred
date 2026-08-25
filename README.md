@@ -109,7 +109,3 @@ CONTRACT_ADDRESS=your_deployed_contract_address_here
 ```bash
 uvicorn backend.app:app --reload
 ```
-
-5. **Test the Chatbot Interface**
-
-Open frontend/index.html in your browser to test the interactive WhatsApp chat simulator live against your backend!
