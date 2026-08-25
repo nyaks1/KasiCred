@@ -19,7 +19,7 @@ function Stars({ n }) {
   );
 }
 
-export default function KasiCredVendor() {
+function KasiCredVendor() {
   const [tab, setTab] = useState("signup");
   const [form, setForm] = useState({ name: "", area: "", phone: "", sells: "" });
   const [submitted, setSubmitted] = useState(false);
