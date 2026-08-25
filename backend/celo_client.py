@@ -64,7 +64,7 @@ def get_vendor_summary(vendor_address: str) -> dict:
     checksum_vendor = Web3.to_checksum_address(vendor_address)
     avg_score, count = contract.functions.getVendorSummary(checksum_vendor).call()
     return {
-        "average_score": avg_score,
+        "average_score": avg_score / 10.0,
         "review_count": count
     }
 
