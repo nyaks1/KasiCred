@@ -1,14 +1,14 @@
-const { useState } = React;
+const { useState, useEffect } = React;
 
-const ratingsFeed = [
+const API_URL = window.KASICRED_API_URL || "https://kasicred-api.onrender.com";
+
+const MOCK_FEED = [
   { stars: 5, amount: 45, time: "2m ago", hash: "0x8f2a1c" },
   { stars: 4, amount: 20, time: "1h ago", hash: "0x3c1e94" },
   { stars: 5, amount: 60, time: "3h ago", hash: "0xa71bd0" },
   { stars: 5, amount: 15, time: "Yesterday", hash: "0x0e44f2" },
   { stars: 3, amount: 30, time: "Yesterday", hash: "0x9b2c77" },
 ];
-
-const weeklyBars = [4, 6, 5, 8, 7, 9, 6];
 
 function Stars({ n }) {
   return (
@@ -19,12 +19,88 @@ function Stars({ n }) {
   );
 }
 
+function formatTime(iso) {
+  if (!iso) return "recent";
+  const d = new Date(iso + "Z");
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return "Yesterday";
+}
+
 function KasiCredVendor() {
   const [tab, setTab] = useState("signup");
   const [form, setForm] = useState({ name: "", area: "", phone: "", sells: "" });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [metrics, setMetrics] = useState(null);
+  const [reviews, setReviews] = useState(MOCK_FEED);
+  const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState(null);
 
   const update = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // ── Fetch dashboard data when switching to dashboard ──────────
+  useEffect(() => {
+    if (tab !== "dashboard") return;
+    const phone = (form.phone || "").trim().replace(/\s/g, "").toLowerCase();
+    if (!phone) return;
+
+    setLoading(true);
+    setApiError(null);
+
+    fetch(`${API_URL}/vendor/phone/${encodeURIComponent(phone)}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        setMetrics(data.trust_metrics);
+        if (data.recent_reviews && data.recent_reviews.length > 0) {
+          setReviews(
+            data.recent_reviews.map((r) => ({
+              stars: r.score,
+              time: formatTime(r.created_at),
+              hash: r.tx_hash ? r.tx_hash.slice(0, 8) : "—",
+              text: r.review_text || "",
+            }))
+          );
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        setApiError("Backend offline — showing demo data");
+        setLoading(false);
+      });
+  }, [tab, submitted, form.phone]);
+
+  // ── Register vendor ───────────────────────────────────────────
+  const handleRegister = () => {
+    setSubmitting(true);
+    fetch(`${API_URL}/vendor/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        store_name: form.name,
+        phone_number: form.phone,
+        market_area: form.area,
+        category_items: form.sells,
+      }),
+    })
+      .then(() => setSubmitted(true))
+      .catch(() => {
+        setApiError("Backend offline — saved locally");
+        setSubmitted(true);
+      })
+      .finally(() => setSubmitting(false));
+  };
+
+  // ── Compute score ─────────────────────────────────────────────
+  const avgScore = metrics?.average_score || 0;
+  const trustPct = Math.round((avgScore / 5) * 100);
+  const reviewCount = metrics?.review_count || 0;
+  const isLoanReady = trustPct >= 80;
 
   return (
     <div
@@ -55,11 +131,14 @@ function KasiCredVendor() {
           border-radius: 8px; font-weight: 600; font-size: 14px; margin-top: 20px; cursor: pointer;
         }
         .kc-btn:hover { opacity: 0.92; }
+        .kc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .kc-tab {
           background: none; border: none; color: #F5F0E6; opacity: 0.5; font-size: 13px;
           padding: 6px 0; cursor: pointer; border-bottom: 2px solid transparent;
         }
         .kc-tab.active { opacity: 1; border-color: #F2A93B; }
+        .kc-error { background: #2B1515; border: 1px solid #5C2020; color: #F5A0A0; font-size: 11px;
+          padding: 8px 10px; border-radius: 6px; margin-top: 12px; }
       `}</style>
 
       <div className="kc-display" style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.5 }}>
@@ -78,6 +157,10 @@ function KasiCredVendor() {
         </button>
       </div>
 
+      {apiError && (
+        <div className="kc-error">{apiError}</div>
+      )}
+
       {tab === "signup" && !submitted && (
         <div style={{ marginTop: 4 }}>
           <label className="kc-label">Vendor / stall name</label>
@@ -87,13 +170,13 @@ function KasiCredVendor() {
           <input className="kc-input" value={form.area} onChange={update("area")} placeholder="e.g. Bree Street Market, Jozi" />
 
           <label className="kc-label">Phone number</label>
-          <input className="kc-input" value={form.phone} onChange={update("phone")} placeholder="+27 ..." />
+          <input className="kc-input" value={form.phone} onChange={update("phone")} placeholder="071 234 5678" />
 
           <label className="kc-label">What do you sell?</label>
           <input className="kc-input" value={form.sells} onChange={update("sells")} placeholder="e.g. Vetkoek, airtime, sweets" />
 
-          <button className="kc-btn" onClick={() => setSubmitted(true)}>
-            Create my ledger
+          <button className="kc-btn" disabled={submitting} onClick={handleRegister}>
+            {submitting ? "Creating…" : "Create my ledger"}
           </button>
           <div style={{ fontSize: 11, opacity: 0.45, marginTop: 12, lineHeight: 1.5 }}>
             No app download. No wallet. Ratings and sales are verified on-chain —
@@ -104,7 +187,7 @@ function KasiCredVendor() {
 
       {tab === "signup" && submitted && (
         <div style={{ marginTop: 40, textAlign: "center" }}>
-          <div style={{ fontSize: 40 }}>✅</div>
+          <div style={{ fontSize: 40 }}>&#10003;</div>
           <div className="kc-display" style={{ fontSize: 16, fontWeight: 700, marginTop: 10 }}>
             Ledger created
           </div>
@@ -119,107 +202,95 @@ function KasiCredVendor() {
 
       {tab === "dashboard" && (
         <div style={{ marginTop: 18 }}>
-          <div style={{ fontSize: 13, opacity: 0.6 }}>Dumela, {form.name || "Vendor"} 👋</div>
+          <div style={{ fontSize: 13, opacity: 0.6 }}>Dumela, {form.name || "Vendor"} &#x1F44B;</div>
 
-          {/* Receipt-style trust score card */}
-          <div
-            style={{
-              marginTop: 14,
-              background:
-                "repeating-linear-gradient(to bottom, transparent 0 6px, #14171A 6px 12px), #1E2226",
-              backgroundPosition: "0 0, 0 0",
-              border: "1px dashed #3A4046",
-              borderRadius: 4,
-              padding: "18px 16px",
-              position: "relative",
-            }}
-          >
-            <div className="kc-mono" style={{ fontSize: 10.5, opacity: 0.5, letterSpacing: 1 }}>
-              KASICRED TRUST RECEIPT · #0A3F
+          {loading ? (
+            <div style={{ fontSize: 13, opacity: 0.5, marginTop: 20, textAlign: "center" }}>
+              Loading trust data…
             </div>
-            <div className="kc-display" style={{ fontSize: 34, fontWeight: 700, color: "#F2A93B", marginTop: 4 }}>
-              84<span style={{ fontSize: 16, fontWeight: 500, opacity: 0.6 }}> /100</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-              <span style={{ fontSize: 11.5, opacity: 0.6 }}>Trust score</span>
-              <span
+          ) : (
+            <>
+              {/* Receipt-style trust score card */}
+              <div
                 style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: "#14171A",
-                  background: "#1B7A6E",
-                  padding: "3px 8px",
-                  borderRadius: 999,
+                  marginTop: 14,
+                  background:
+                    "repeating-linear-gradient(to bottom, transparent 0 6px, #14171A 6px 12px), #1E2226",
+                  backgroundPosition: "0 0, 0 0",
+                  border: "1px dashed #3A4046",
+                  borderRadius: 4,
+                  padding: "18px 16px",
+                  position: "relative",
                 }}
               >
-                LOAN READY
-              </span>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 12.5 }}>
-              <span style={{ opacity: 0.65 }}>Verified sales</span>
-              <span className="kc-mono">128</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 12.5 }}>
-              <span style={{ opacity: 0.65 }}>Avg rating</span>
-              <span className="kc-mono">4.6 ★</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 12.5 }}>
-              <span style={{ opacity: 0.65, color: "#1B7A6E" }}>This week</span>
-              <span className="kc-mono" style={{ color: "#1B7A6E" }}>+6 sales</span>
-            </div>
-          </div>
-
-          {/* weekly bars */}
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 44, marginTop: 16 }}>
-            {weeklyBars.map((v, i) => (
-              <div
-                key={i}
-                style={{
-                  flex: 1,
-                  height: `${(v / 9) * 100}%`,
-                  background: i === weeklyBars.length - 1 ? "#F2A93B" : "#2B3036",
-                  borderRadius: 3,
-                }}
-              />
-            ))}
-          </div>
-          <div style={{ fontSize: 10.5, opacity: 0.4, marginTop: 4 }}>sales, last 7 days</div>
-
-          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 22, marginBottom: 8, fontWeight: 600 }}>
-            Recent verified ratings
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {ratingsFeed.map((r, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  background: "#1E2226",
-                  borderRadius: 8,
-                  padding: "9px 12px",
-                  fontSize: 12.5,
-                }}
-              >
-                <div>
-                  <Stars n={r.stars} />
-                  <span style={{ opacity: 0.5, marginLeft: 8 }}>R{r.amount} sale</span>
+                <div className="kc-mono" style={{ fontSize: 10.5, opacity: 0.5, letterSpacing: 1 }}>
+                  KASICRED TRUST RECEIPT
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ opacity: 0.45, fontSize: 11 }}>{r.time}</div>
-                  <div className="kc-mono" style={{ opacity: 0.35, fontSize: 10 }}>
-                    {r.hash}
-                  </div>
+                <div className="kc-display" style={{ fontSize: 34, fontWeight: 700, color: "#F2A93B", marginTop: 4 }}>
+                  {trustPct}<span style={{ fontSize: 16, fontWeight: 500, opacity: 0.6 }}> /100</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                  <span style={{ fontSize: 11.5, opacity: 0.6 }}>Trust score</span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: "#14171A",
+                      background: isLoanReady ? "#1B7A6E" : "#5C4A1E",
+                      padding: "3px 8px",
+                      borderRadius: 999,
+                    }}
+                  >
+                    {isLoanReady ? "LOAN READY" : "BUILDING"}
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 12.5 }}>
+                  <span style={{ opacity: 0.65 }}>Verified sales</span>
+                  <span className="kc-mono">{reviewCount}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 12.5 }}>
+                  <span style={{ opacity: 0.65 }}>Avg rating</span>
+                  <span className="kc-mono">{avgScore.toFixed(1)} &#9733;</span>
                 </div>
               </div>
-            ))}
-          </div>
 
-          <button className="kc-btn" style={{ background: "#1B7A6E", color: "#F5F0E6" }}>
-            Download proof-of-business PDF
-          </button>
+              {/* Recent verified ratings */}
+              <div style={{ fontSize: 12, opacity: 0.7, marginTop: 22, marginBottom: 8, fontWeight: 600 }}>
+                Recent verified ratings
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {reviews.map((r, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      background: "#1E2226",
+                      borderRadius: 8,
+                      padding: "9px 12px",
+                      fontSize: 12.5,
+                    }}
+                  >
+                    <div>
+                      <Stars n={r.stars} />
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ opacity: 0.45, fontSize: 11 }}>{r.time}</div>
+                      <div className="kc-mono" style={{ opacity: 0.35, fontSize: 10 }}>
+                        {r.hash}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button className="kc-btn" style={{ background: "#1B7A6E", color: "#F5F0E6" }}>
+                Download proof-of-business PDF
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
