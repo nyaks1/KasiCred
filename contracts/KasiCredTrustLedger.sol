@@ -8,6 +8,27 @@ contract KasiCredTrustLedger {
         uint256 timestamp;
     }
 
+    // Only the backend relayer may write reviews; vendors and buyers never
+    // touch this contract directly.
+    address public relayer;
+
+    event RelayerTransferred(address indexed previousRelayer, address indexed newRelayer);
+
+    constructor() {
+        relayer = msg.sender;
+    }
+
+    modifier onlyRelayer() {
+        require(msg.sender == relayer, "KasiCred: caller is not the relayer");
+        _;
+    }
+
+    function transferRelayer(address newRelayer) external onlyRelayer {
+        require(newRelayer != address(0), "KasiCred: zero address");
+        emit RelayerTransferred(relayer, newRelayer);
+        relayer = newRelayer;
+    }
+
     // Mapping from vendor address to review records
     mapping(address => ReviewRecord[]) private vendorReviews;
     mapping(address => uint256) public totalScore;
@@ -20,7 +41,7 @@ contract KasiCredTrustLedger {
         uint256 timestamp
     );
 
-    function recordReview(address vendor, bytes32 reviewHash, uint8 score) external {
+    function recordReview(address vendor, bytes32 reviewHash, uint8 score) external onlyRelayer {
         require(score >= 1 && score <= 5, "Score must be 1-5");
         
         vendorReviews[vendor].push(ReviewRecord({
