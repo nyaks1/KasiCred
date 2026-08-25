@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+const { useState } = React;
 
 const ratingsFeed = [
   { stars: 5, amount: 45, time: "2m ago", hash: "0x8f2a1c" },
