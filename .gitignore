@@ -1,0 +1,15 @@
+.env
+env/
+.deps/
+artifacts/
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.vscode/
+.idea/
+*.swp
+*.swo
