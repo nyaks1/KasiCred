@@ -1,0 +1,10 @@
+{
+  "Contracts/KasiCredTrustLedger.sol": {
+    "__sources__": {
+      "Contracts/KasiCredTrustLedger.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\n\ncontract KasiCredTrustLedger {\n    struct ReviewRecord {\n        bytes32 reviewHash;\n        uint8 score;\n        uint256 timestamp;\n    }\n\n    // Mapping from vendor address to review records\n    mapping(address => ReviewRecord[]) private vendorReviews;\n    mapping(address => uint256) public totalScore;\n    mapping(address => uint256) public reviewCount;\n\n    event ReviewCommitted(\n        address indexed vendor,\n        bytes32 reviewHash,\n        uint8 score,\n        uint256 timestamp\n    );\n\n    function recordReview(address vendor, bytes32 reviewHash, uint8 score) external {\n        require(score >= 1 && score <= 5, \"Score must be 1-5\");\n        \n        vendorReviews[vendor].push(ReviewRecord({\n            reviewHash: reviewHash,\n            score: score,\n            timestamp: block.timestamp\n        }));\n\n        totalScore[vendor] += score;\n        reviewCount[vendor] += 1;\n\n        emit ReviewCommitted(vendor, reviewHash, score, block.timestamp);\n    }\n\n    function getVendorSummary(address vendor) external view returns (uint256 averageScore, uint256 count) {\n        if (reviewCount[vendor] == 0) return (0, 0);\n        return ((totalScore[vendor] * 10) / reviewCount[vendor], reviewCount[vendor]);\n    }\n}",
+        "file": "Contracts/KasiCredTrustLedger.sol"
+      }
+    }
+  }
+}

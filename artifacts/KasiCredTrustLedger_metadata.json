@@ -1,0 +1,162 @@
+{
+	"compiler": {
+		"version": "0.8.34+commit.80d5c536"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "vendor",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "bytes32",
+						"name": "reviewHash",
+						"type": "bytes32"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint8",
+						"name": "score",
+						"type": "uint8"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "timestamp",
+						"type": "uint256"
+					}
+				],
+				"name": "ReviewCommitted",
+				"type": "event"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "vendor",
+						"type": "address"
+					}
+				],
+				"name": "getVendorSummary",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "averageScore",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "count",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "vendor",
+						"type": "address"
+					},
+					{
+						"internalType": "bytes32",
+						"name": "reviewHash",
+						"type": "bytes32"
+					},
+					{
+						"internalType": "uint8",
+						"name": "score",
+						"type": "uint8"
+					}
+				],
+				"name": "recordReview",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"name": "reviewCount",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"name": "totalScore",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			}
+		],
+		"devdoc": {
+			"kind": "dev",
+			"methods": {},
+			"version": 1
+		},
+		"userdoc": {
+			"kind": "user",
+			"methods": {},
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"Contracts/KasiCredTrustLedger.sol": "KasiCredTrustLedger"
+		},
+		"evmVersion": "osaka",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": false,
+			"runs": 200
+		},
+		"remappings": []
+	},
+	"sources": {
+		"Contracts/KasiCredTrustLedger.sol": {
+			"keccak256": "0x5cdc058114969758b62024c463bed1a08c542ee255c38431b1bb24146948eb85",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://e711b154cbf8480a463c8421b5d362970283caa839b394a2aba413d8cb545caf",
+				"dweb:/ipfs/QmX9TNvqFyoWhoTuqcy3tasQv3dAUPzbYLWCxuixgu8ta2"
+			]
+		}
+	},
+	"version": 1
+}
