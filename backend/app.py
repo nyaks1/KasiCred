@@ -95,6 +95,9 @@ class VendorRegistrationPayload(BaseModel):
     category_items: str
     password: str
 
+class VendorLoginPayload(BaseModel):
+    phone_number: str
+    password: str
 
 class UnifiedReviewPayload(BaseModel):
     phone: str
