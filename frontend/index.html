@@ -29,22 +29,14 @@
       const API_URL = window.KASICRED_API_URL || "https://kasicred-api.onrender.com";
 
       const MOCK_FEED = [
-        { stars: 5, time: "2m ago", hash: "0x8f2a1c", source: "whatsapp" },
-        { stars: 4, time: "1h ago", hash: "0x3c1e94", source: "whatsapp" },
-        { stars: 5, time: "3h ago", hash: "0xa71bd0", source: "direct" },
+        { review_text: "Great fresh vetkoek every morning!", time: "2m ago", hash: "0x8f2a1c" },
+        { review_text: "Friendly service and good prices.", time: "1h ago", hash: "0x3c1e94" },
       ];
-
-      function Stars({ n }) {
-        return (
-          <span style={{ letterSpacing: 1 }}>
-            {"★".repeat(n)}
-            <span style={{ opacity: 0.25 }}>{"★".repeat(5 - n)}</span>
-          </span>
-        );
-      }
 
       function KasiCredApp() {
         const [view, setView] = useState("login");
+        // Store logged in vendor data separately from input form state
+        const [vendor, setVendor] = useState({ name: "Jiara Martins", area: "Bree Street Market", sells: "Scones, sweets, vetkoek", phone: "" });
         const [form, setForm] = useState({ name: "", area: "", phone: "", sells: "", password: "" });
         const [submitting, setSubmitting] = useState(false);
         const [apiError, setApiError] = useState(null);
@@ -57,7 +49,7 @@
 
         useEffect(() => {
           if (view !== "dashboard") return;
-          const phone = (form.phone || "").trim().replace(/\s/g, "").toLowerCase();
+          const phone = (form.phone || vendor.phone || "").trim().replace(/\s/g, "").toLowerCase();
           if (!phone) return;
 
           setLoading(true);
@@ -70,12 +62,12 @@
             })
             .then((data) => {
               if (data.profile) {
-                setForm(f => ({
-                  ...f,
-                  name: data.profile.store_name || f.name,
-                  area: data.profile.market_area || f.area,
-                  sells: data.profile.category_items || f.sells
-                }));
+                setVendor({
+                  name: data.profile.store_name || "Vendor Stall",
+                  area: data.profile.market_area || "Local Market",
+                  sells: data.profile.category_items || "General Goods",
+                  phone: phone
+                });
               }
               setMetrics(data.trust_metrics);
               if (data.recent_reviews && data.recent_reviews.length > 0) {
@@ -84,6 +76,7 @@
               setLoading(false);
             })
             .catch(() => {
+              // Keep current state if offline
               setLoading(false);
             });
         }, [view, form.phone]);
@@ -108,8 +101,24 @@
               if (!res.ok) throw new Error("Registration failed");
               return res.json();
             })
-            .then(() => setView("dashboard"))
-            .catch(() => setView("dashboard"))
+            .then((data) => {
+              if (data.profile) {
+                setVendor({
+                  name: data.profile.store_name,
+                  area: data.profile.market_area,
+                  sells: data.profile.category_items,
+                  phone: form.phone
+                });
+              } else {
+                setVendor({ name: form.name, area: form.area, sells: form.sells, phone: form.phone });
+              }
+              setView("dashboard");
+            })
+            .catch(() => {
+              // Fallback to form inputs if backend is offline
+              setVendor({ name: form.name, area: form.area, sells: form.sells, phone: form.phone });
+              setView("dashboard");
+            })
             .finally(() => setSubmitting(false));
         };
 
@@ -132,23 +141,26 @@
             })
             .then((data) => {
               if (data.profile) {
-                setForm(f => ({
-                  ...f,
+                setVendor({
                   name: data.profile.store_name,
                   area: data.profile.market_area,
-                  sells: data.profile.category_items
-                }));
+                  sells: data.profile.category_items,
+                  phone: form.phone
+                });
               }
               setView("dashboard");
             })
-            .catch(() => setView("dashboard"))
+            .catch((err) => {
+              setApiError(err.message || "Login failed");
+            })
             .finally(() => setSubmitting(false));
         };
 
-        const avgScore = metrics?.average_score || 4.6;
+        const avgScore = metrics?.average_score || 4.2;
         const trustPct = Math.round((avgScore / 5) * 100);
-        const reviewCount = metrics?.review_count || 128;
-        const isLoanReady = trustPct >= 80;
+        const reviewCount = metrics?.review_count || 23;
+        const isLoanReady = trustPct >= 70;
+        const activeBlocks = Math.round((trustPct / 100) * 10);
 
         return (
           <div
@@ -158,15 +170,14 @@
               color: "#1A1A1A",
               width: "100%",
               maxWidth: "440px",
-              minHeight: "min(92vh, 740px)",
-              padding: "clamp(16px, 4vw, 32px) clamp(16px, 4vw, 24px)",
+              minHeight: "min(92vh, 780px)",
+              padding: "clamp(16px, 4vw, 28px)",
               borderRadius: "clamp(16px, 4vw, 28px)",
               boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
               boxSizing: "border-box",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              justifyContent: "center",
               overflowY: "auto",
             }}
           >
@@ -181,9 +192,9 @@
               }
               .kc-input-box:focus { border-color: #000000; background: #FAE1C1; }
               .kc-btn-green {
-                width: 100%; background: #00B654; color: #ffffff; border: 2px solid #000000; padding: clamp(10px, 2.5vw, 14px);
-                border-radius: 14px; font-weight: 700; font-size: clamp(14px, 3.5vw, 16px); margin-top: 20px; cursor: pointer;
-                box-shadow: 0 4px 0 #000000; transition: transform 0.1s, box-shadow 0.1s;
+                width: 100%; background: #00B654; color: #ffffff; border: 2px solid #000000; padding: clamp(12px, 3vw, 15px);
+                border-radius: 14px; font-weight: 700; font-size: clamp(15px, 3.8vw, 17px); margin-top: 14px; cursor: pointer;
+                box-shadow: 0 4px 0 #000000; transition: transform 0.1s, box-shadow 0.1s; text-transform: uppercase; letter-spacing: 0.5px;
               }
               .kc-btn-green:active { transform: translateY(2px); box-shadow: 0 2px 0 #000000; }
               .kc-btn-purple {
@@ -191,7 +202,12 @@
                 border-radius: 14px; font-weight: 700; font-size: clamp(14px, 3.5vw, 16px); margin-top: 18px; cursor: pointer;
                 box-shadow: 0 4px 0 #000000; transition: transform 0.1s, box-shadow 0.1s;
               }
-              .kc-btn-purple:active { transform: translateY(2px); box-shadow: 0 2px 0 #000000; }
+              .kc-btn-white {
+                width: 100%; background: #FFFFFF; color: #5C3A19; border: 2px solid #5C3A19; padding: clamp(12px, 3vw, 15px);
+                border-radius: 14px; font-weight: 700; font-size: clamp(14px, 3.5vw, 16px); margin-top: 16px; cursor: pointer;
+                box-shadow: 0 4px 0 #5C3A19; transition: transform 0.1s, box-shadow 0.1s;
+              }
+              .kc-btn-white:active { transform: translateY(2px); box-shadow: 0 2px 0 #5C3A19; }
               .kc-link { color: #1A1A1A; font-weight: 700; text-decoration: underline; cursor: pointer; }
               .kc-error { background: #5C2020; color: #FFD2D2; font-size: 11px; padding: 8px; border-radius: 8px; margin-top: 8px; width: 100%; text-align: center; }
             `}</style>
@@ -275,59 +291,99 @@
 
             {/* 3. DASHBOARD VIEW */}
             {view === "dashboard" && (
-              <div style={{ width: "100%", display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <div className="kc-title" style={{ fontSize: "clamp(14px, 4vw, 18px)" }}>KASICRED DASHBOARD</div>
-                  <button onClick={() => setView("login")} style={{ background: "none", border: "none", fontWeight: 700, cursor: "pointer", textDecoration: "underline", fontSize: "12px" }}>Logout</button>
+              <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                
+                {/* Top Header with Logo and Back Button */}
+                <div style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ background: "#222222", padding: "3px", borderRadius: "10px", border: "2px solid #1A1A1A", width: 34, height: 34, display: "flex", justifyContent: "center", alignItems: "center" }}>
+                      <img src="logo.png" alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: "6px" }} />
+                    </div>
+                    <div className="kc-title" style={{ fontSize: "18px" }}>KASICRED</div>
+                  </div>
+                  <button onClick={() => setView("login")} style={{ background: "#F3C68F", border: "2px solid #5C3A19", padding: "5px 12px", borderRadius: "10px", fontWeight: 700, cursor: "pointer", fontSize: "11px", textTransform: "uppercase" }}>Back ◀</button>
                 </div>
 
-                <div style={{ fontSize: "clamp(12px, 3vw, 13px)", fontWeight: 600, color: "#222", marginBottom: 10 }}>
-                  Dumela, {form.name || "Vendor"} 👋
+                <div style={{ fontSize: "13px", fontWeight: 700, color: "#222", marginBottom: 10, alignSelf: "flex-start" }}>
+                  Dumela, {vendor.name} 👋
                 </div>
 
                 {loading ? (
-                  <div style={{ textAlign: "center", padding: "30px 0", fontWeight: 600 }}>Loading trust ledger...</div>
+                  <div style={{ textAlign: "center", padding: "40px 0", fontWeight: 600 }}>Loading dashboard...</div>
                 ) : (
                   <>
-                    <div style={{ background: "#F3C68F", border: "2px dashed #5C3A19", borderRadius: 14, padding: "14px", marginBottom: 14 }}>
-                      <div style={{ fontSize: "9px", fontWeight: 700, letterSpacing: 1, color: "#5C3A19" }}>TRUST RECEIPT · ON-CHAIN</div>
-                      <div className="kc-title" style={{ fontSize: "clamp(26px, 7vw, 32px)", marginTop: 2 }}>
-                        {trustPct}<span style={{ fontSize: "clamp(14px, 4vw, 16px)", fontWeight: 500 }}> /100</span>
-                      </div>
-                      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
-                        <span style={{ fontSize: "11px", fontWeight: 600 }}>Status:</span>
-                        <span style={{ background: isLoanReady ? "#00B654" : "#5C3A19", color: "#fff", padding: "2px 8px", borderRadius: 99, fontSize: "10px", fontWeight: 700 }}>
-                          {isLoanReady ? "LOAN READY" : "BUILDING TRUST"}
-                        </span>
-                      </div>
-
-                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: "12px", fontWeight: 600 }}>
-                        <span>Verified Sales</span>
-                        <span>{reviewCount}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3, fontSize: "12px", fontWeight: 600 }}>
-                        <span>Avg Rating</span>
-                        <span>{avgScore.toFixed(1)} ★</span>
-                      </div>
+                    {/* Dynamic User Info Card bound to active vendor state */}
+                    <div style={{ width: "100%", background: "#F3C68F", border: "2px solid #5C3A19", borderRadius: "16px", padding: "12px 16px", textAlign: "center", marginBottom: 14, boxSizing: "border-box" }}>
+                      <div style={{ fontSize: "16px", fontWeight: 700, color: "#1A1A1A" }}>{vendor.name}</div>
+                      <div style={{ fontSize: "12px", fontWeight: 600, color: "#444", marginTop: 2 }}>{vendor.area}</div>
+                      <div style={{ fontSize: "12px", fontWeight: 500, color: "#555", marginTop: 2, fontStyle: "italic" }}>{vendor.sells}</div>
                     </div>
 
-                    <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", marginBottom: 6, color: "#333" }}>
-                      Recent Verified Ratings
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "130px", overflowY: "auto" }}>
-                      {reviews.map((r, i) => (
-                        <div key={i} style={{ background: "#F3C68F", border: "1px solid #5C3A19", borderRadius: 10, padding: "6px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px" }}>
-                          <Stars n={r.score || r.stars} />
-                          <div style={{ textAlign: "right", fontSize: "10px" }}>
-                            <div style={{ fontWeight: 600 }}>{r.time}</div>
-                            <div style={{ opacity: 0.6, fontFamily: "monospace" }}>{r.hash ? r.hash.slice(0,8) : "—"}</div>
-                          </div>
+                    {/* Ratings & Verified Reviews Row */}
+                    <div style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 12 }}>
+                      {/* Star Badge */}
+                      <div style={{ flex: 1, background: "#F3C68F", border: "2px solid #5C3A19", borderRadius: "16px", padding: "12px", display: "flex", flexDirection: "column", alignItems: "center", position: "relative" }}>
+                        <div style={{ fontSize: "36px", color: "#FFC700", filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.2))", lineHeight: 1 }}>★</div>
+                        <div className="kc-title" style={{ fontSize: "22px", marginTop: 4, color: "#1A1A1A" }}>{avgScore.toFixed(1)}</div>
+                      </div>
+
+                      {/* Verified Reviews Circle */}
+                      <div style={{ flex: 1, background: "#F3C68F", border: "2px solid #5C3A19", borderRadius: "16px", padding: "12px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                        <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", color: "#333", marginBottom: 4 }}>Verified Reviews</div>
+                        <div style={{ width: "42px", height: "42px", borderRadius: "50%", background: "#0047FF", display: "flex", justifyContent: "center", alignItems: "center", color: "#fff", fontWeight: 700, fontSize: "16px", border: "2px solid #000" }}>
+                          {reviewCount}
                         </div>
-                      ))}
+                      </div>
                     </div>
 
-                    <button className="kc-btn-green" style={{ marginTop: 14 }}>
-                      Download Proof-of-Business PDF
+                    {/* Trust Percentage Progress Blocks */}
+                    <div style={{ width: "100%", background: "#F3C68F", border: "2px solid #5C3A19", borderRadius: "16px", padding: "12px 14px", marginBottom: 14, boxSizing: "border-box" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                        <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#333" }}>Trust Percentage</span>
+                        <span className="kc-title" style={{ fontSize: "16px", color: "#1A1A1A" }}>{trustPct}/100</span>
+                      </div>
+
+                      {/* 10 Block Grid */}
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: "4px" }}>
+                        {Array.from({ length: 10 }).map((_, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              height: "18px",
+                              borderRadius: "4px",
+                              backgroundColor: idx < activeBlocks ? "#00B654" : "#D4B08C",
+                              border: "1px solid #5C3A19"
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Loan Ready Status Button */}
+                    <div style={{ width: "100%", backgroundColor: "#00B654", border: "2px solid #000000", borderRadius: "14px", padding: "12px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: "15px", textTransform: "uppercase", letterSpacing: 0.5, boxShadow: "0 3px 0 #000", marginBottom: 16 }}>
+                      {isLoanReady ? "Loan Ready" : "Building Trust"}
+                    </div>
+
+                    {/* Recent Customer Reviews Box */}
+                    <div style={{ width: "100%", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", marginBottom: 6, color: "#222", alignSelf: "flex-start" }}>
+                      Recent customer reviews
+                    </div>
+                    <div style={{ width: "100%", background: "#F3C68F", border: "2px solid #5C3A19", borderRadius: "16px", padding: "12px", minHeight: "80px", maxHeight: "120px", overflowY: "auto", marginBottom: 16, boxSizing: "border-box" }}>
+                      {reviews.length === 0 ? (
+                        <div style={{ fontSize: "12px", color: "#555", fontStyle: "italic", textAlign: "center", marginTop: "15px" }}>No reviews yet.</div>
+                      ) : (
+                        reviews.map((r, i) => (
+                          <div key={i} style={{ fontSize: "12px", borderBottom: i < reviews.length - 1 ? "1px solid #D4B08C" : "none", paddingBottom: "6px", marginBottom: "6px" }}>
+                            <div style={{ fontWeight: 600, color: "#1A1A1A" }}>"{r.review_text || "Verified Sale Recorded"}"</div>
+                            <div style={{ fontSize: "10px", color: "#555", marginTop: "2px" }}>{r.time} • <span style={{ fontFamily: "monospace" }}>{r.hash ? r.hash.slice(0, 8) : "on-chain"}</span></div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Download PDF Button */}
+                    <button className="kc-btn-white">
+                      Download Proof of Business PDF
                     </button>
                   </>
                 )}
