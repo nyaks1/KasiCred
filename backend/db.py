@@ -60,17 +60,18 @@ def ensure_vendor(phone: str, wallet_address: str, store_name: str = "Unregister
 
 
 def upsert_vendor(phone: str, store_name: str, market_area: str,
-                  category_items: str, wallet_address: str) -> dict:
+                  category_items: str, wallet_address: str, password_hash: str = "") -> dict:
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO vendors (phone, store_name, market_area, category_items, wallet_address) "
-            "VALUES (?, ?, ?, ?, ?) "
+            "VALUES (?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(phone) DO UPDATE SET "
             "store_name = excluded.store_name, "
             "market_area = excluded.market_area, "
             "category_items = excluded.category_items, "
             "wallet_address = excluded.wallet_address",
-            (phone, store_name, market_area, category_items, wallet_address),
+            "password_hash = CASE WHEN excluded.password_hash != '' THEN excluded.password_hash ELSE vendors.password_hash END",
+            (phone, store_name, market_area, category_items, wallet_address, password_hash),
         )
     return get_vendor(phone)
 
