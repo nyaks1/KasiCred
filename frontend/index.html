@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>KasiCred — Build your trust. Bank your sales.</title>
+    <title>KasiCred — Turn Daily Cash Trade into Portable, Tamper-Proof Trust</title>
     <style>
       body {
         margin: 0;
@@ -11,8 +11,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #000000;
-        color: #ffffff;
+        background: #111111;
       }
     </style>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -25,12 +24,12 @@
     <script type="text/babel">
       const { useState, useEffect } = React;
 
-      const API_URL = window.KASICRED_API_URL || "http://127.0.0.1:8000";
+      const API_URL = window.KASICRED_API_URL || "https://kasicred-api.onrender.com";
 
       const MOCK_FEED = [
-        { stars: 5, amount: 45, time: "2m ago", hash: "0x8f2a1c" },
-        { stars: 4, amount: 20, time: "1h ago", hash: "0x3c1e94" },
-        { stars: 5, amount: 60, time: "3h ago", hash: "0xa71bd0" },
+        { stars: 5, time: "2m ago", hash: "0x8f2a1c", source: "whatsapp" },
+        { stars: 4, time: "1h ago", hash: "0x3c1e94", source: "whatsapp" },
+        { stars: 5, time: "3h ago", hash: "0xa71bd0", source: "direct" },
       ];
 
       function Stars({ n }) {
@@ -43,19 +42,18 @@
       }
 
       function KasiCredApp() {
-        const [view, setView] = useState("home"); // "home" | "signup" | "login" | "dashboard"
+        const [view, setView] = useState("login"); // "login" | "signup" | "dashboard"
         const [form, setForm] = useState({ name: "", area: "", phone: "", sells: "", password: "" });
         const [submitting, setSubmitting] = useState(false);
         const [apiError, setApiError] = useState(null);
         
-        // Dashboard state data
         const [metrics, setMetrics] = useState(null);
         const [reviews, setReviews] = useState(MOCK_FEED);
         const [loading, setLoading] = useState(false);
 
         const update = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-        // Fetch metrics when dashboard loads
+        // Fetch live dashboard metrics
         useEffect(() => {
           if (view !== "dashboard") return;
           const phone = (form.phone || "").trim().replace(/\s/g, "").toLowerCase();
@@ -70,14 +68,21 @@
               return r.json();
             })
             .then((data) => {
+              if (data.profile) {
+                setForm(f => ({
+                  ...f,
+                  name: data.profile.store_name || f.name,
+                  area: data.profile.market_area || f.area,
+                  sells: data.profile.category_items || f.sells
+                }));
+              }
               setMetrics(data.trust_metrics);
-              if (data.profile && data.profile.store_name) {
-                setForm(f => ({ ...f, name: data.profile.store_name }));
+              if (data.recent_reviews && data.recent_reviews.length > 0) {
+                setReviews(data.recent_reviews);
               }
               setLoading(false);
             })
             .catch(() => {
-              setApiError("Backend offline — showing demo metrics");
               setLoading(false);
             });
         }, [view, form.phone]);
@@ -95,25 +100,48 @@
               phone_number: form.phone,
               market_area: form.area,
               category_items: form.sells,
+              password: form.password
             }),
           })
             .then((res) => {
               if (!res.ok) throw new Error("Registration failed");
               return res.json();
             })
-            .then(() => {
-              setView("dashboard");
-            })
-            .catch(() => {
-              setApiError("Backend offline — proceeding to local dashboard");
-              setView("dashboard");
-            })
+            .then(() => setView("dashboard"))
+            .catch(() => setView("dashboard")) // Fallback for local demo
             .finally(() => setSubmitting(false));
         };
 
         const handleLogin = (e) => {
           e.preventDefault();
-          setView("dashboard");
+          setSubmitting(true);
+          setApiError(null);
+
+          fetch(`${API_URL}/vendor/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              phone_number: form.phone,
+              password: form.password
+            }),
+          })
+            .then((res) => {
+              if (!res.ok) throw new Error("Invalid credentials");
+              return res.json();
+            })
+            .then((data) => {
+              if (data.profile) {
+                setForm(f => ({
+                  ...f,
+                  name: data.profile.store_name,
+                  area: data.profile.market_area,
+                  sells: data.profile.category_items
+                }));
+              }
+              setView("dashboard");
+            })
+            .catch(() => setView("dashboard")) // Fallback for demo
+            .finally(() => setSubmitting(false));
         };
 
         const avgScore = metrics?.average_score || 4.6;
@@ -125,213 +153,179 @@
           <div
             style={{
               fontFamily: "Inter, system-ui, sans-serif",
-              background: "#0a0a0a",
-              color: "#ffffff",
-              minHeight: 460,
+              backgroundColor: "#E6A15C",
+              color: "#1A1A1A",
+              minHeight: "680px",
               width: "100%",
-              maxWidth: 400,
+              maxWidth: "390px",
               padding: "32px 24px",
-              borderRadius: 12,
-              border: "1px solid #222222",
+              borderRadius: "28px",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
               boxSizing: "border-box",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
             }}
           >
             <style>{`
-              @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
-              .kc-display { font-family: 'Space Grotesk', sans-serif; }
-              .kc-mono { font-family: 'IBM Plex Mono', monospace; }
-              .kc-input {
-                width: 100%; box-sizing: border-box; background: #000000; border: 1px solid #333333;
-                color: #ffffff; padding: 12px 14px; border-radius: 6px; font-size: 14px; margin-top: 6px;
-                outline: none; transition: border-color 0.15s;
+              @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap');
+              .kc-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+              .kc-field-label { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; color: #222222; margin-top: 14px; margin-bottom: 4px; display: block; text-transform: uppercase; }
+              .kc-input-box {
+                width: 100%; box-sizing: border-box; background: #F3C68F; border: 2px solid #5C3A19;
+                color: #1A1A1A; padding: 11px 14px; border-radius: 12px; font-size: 14px; font-weight: 500;
+                outline: none; transition: all 0.2s;
               }
-              .kc-input:focus { border-color: #ffffff; }
-              .kc-label { font-size: 12px; color: #888888; margin-top: 14px; display: block; font-weight: 500; }
-              .kc-btn {
-                width: 100%; background: #ffffff; color: #000000; border: none; padding: 13px;
-                border-radius: 6px; font-weight: 600; font-size: 14px; margin-top: 24px; cursor: pointer;
-                transition: opacity 0.15s;
+              .kc-input-box:focus { border-color: #000000; background: #FAE1C1; }
+              .kc-btn-green {
+                width: 100%; background: #00B654; color: #ffffff; border: 2px solid #000000; padding: 14px;
+                border-radius: 14px; font-weight: 700; font-size: 16px; margin-top: 22px; cursor: pointer;
+                box-shadow: 0 4px 0 #000000; transition: transform 0.1s, box-shadow 0.1s;
               }
-              .kc-btn:hover { opacity: 0.85; }
-              .kc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-              .kc-btn-outline {
-                width: 100%; background: transparent; color: #ffffff; border: 1px solid #444444; padding: 13px;
-                border-radius: 6px; font-weight: 600; font-size: 14px; margin-top: 12px; cursor: pointer;
-                transition: border-color 0.15s;
+              .kc-btn-green:active { transform: translateY(2px); box-shadow: 0 2px 0 #000000; }
+              .kc-btn-purple {
+                width: 100%; background: #120099; color: #ffffff; border: 2px solid #000000; padding: 14px;
+                border-radius: 14px; font-weight: 700; font-size: 16px; margin-top: 22px; cursor: pointer;
+                box-shadow: 0 4px 0 #000000; transition: transform 0.1s, box-shadow 0.1s;
               }
-              .kc-btn-outline:hover { border-color: #ffffff; }
-              .kc-error { background: #1a0000; border: 1px solid #550000; color: #ff9999; font-size: 12px;
-                padding: 10px; border-radius: 6px; margin-top: 14px; }
+              .kc-btn-purple:active { transform: translateY(2px); box-shadow: 0 2px 0 #000000; }
+              .kc-link { color: #1A1A1A; font-weight: 700; text-decoration: underline; cursor: pointer; }
+              .kc-error { background: #5C2020; color: #FFD2D2; font-size: 11px; padding: 8px; border-radius: 8px; margin-top: 10px; width: 100%; text-align: center; }
             `}</style>
 
-            {/* Header branding */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24 }}>
-              <div 
-                className="kc-display" 
-                style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.5, cursor: "pointer" }}
-                onClick={() => setView("home")}
-              >
-                KasiCred
-              </div>
-              {view !== "home" && (
-                <button 
-                  style={{ background: "none", border: "none", color: "#888", cursor: "pointer", fontSize: "12px" }}
-                  onClick={() => setView("home")}
-                >
-                  ← Home
-                </button>
-              )}
-            </div>
-
-            {apiError && <div className="kc-error">{apiError}</div>}
-
-            {/* 1. HOME VIEW */}
-            {view === "home" && (
-              <div style={{ textAlign: "center", padding: "20px 0" }}>
-                <div style={{ fontSize: 14, color: "#888", marginBottom: 8, lineHeight: 1.5 }}>
-                  Build your trust. Bank your sales.
-                </div>
-                <div style={{ fontSize: 13, color: "#666", marginBottom: 36, lineHeight: 1.5 }}>
-                  Decentralized ledger and trust tracking for informal street vendors.
+            {/* 1. LOGIN VIEW */}
+            {view === "login" && (
+              <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <div className="kc-title" style={{ fontSize: 26, color: "#1A1A1A", marginBottom: 12 }}>
+                  KASICRED
                 </div>
 
-                <button className="kc-btn" onClick={() => setView("signup")}>
-                  Create Ledger (Register)
-                </button>
-                <button className="kc-btn-outline" onClick={() => setView("login")}>
-                  Log In
-                </button>
+                {/* Logo Frame */}
+                <div style={{ background: "#222222", padding: "6px", borderRadius: "20px", border: "3px solid #1A1A1A", marginBottom: 14, width: 110, height: 110, display: "flex", justifyContent: "center", alignItems: "center", boxSizing: "border-box" }}>
+                  <img src="logo.png" alt="KasiCred Logo" style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: "14px" }} />
+                </div>
+
+                <div style={{ fontSize: 13, textAlign: "center", fontWeight: 600, color: "#2A2A2A", marginBottom: 20, padding: "0 10px", lineHeight: 1.4 }}>
+                  Turning Daily Cash Trade into Portable, Tamper-Proof Trust
+                </div>
+
+                {apiError && <div className="kc-error">{apiError}</div>}
+
+                <form onSubmit={handleLogin} style={{ width: "100%" }}>
+                  <label className="kc-field-label">Phone Number / Email</label>
+                  <input className="kc-input-box" value={form.phone} onChange={update("phone")} placeholder="0712345678" required />
+
+                  <label className="kc-field-label">Password</label>
+                  <input className="kc-input-box" type="password" value={form.password} onChange={update("password")} placeholder="******" required />
+
+                  <button className="kc-btn-green" type="submit" disabled={submitting}>
+                    {submitting ? "Logging in..." : "Login"}
+                  </button>
+                </form>
+
+                <div style={{ fontSize: 13, marginTop: 18, color: "#222" }}>
+                  Don’t have an account? <span className="kc-link" onClick={() => setView("signup")}>Register</span>
+                </div>
               </div>
             )}
 
             {/* 2. SIGN UP VIEW */}
             {view === "signup" && (
-              <form onSubmit={handleRegister}>
-                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Register Vendor Ledger</div>
-                
-                <label className="kc-label">Vendor / stall name</label>
-                <input className="kc-input" value={form.name} onChange={update("name")} placeholder="e.g. Mama Thandi's Kitchen" required />
+              <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                  <div style={{ background: "#222222", padding: "4px", borderRadius: "14px", border: "2px solid #1A1A1A", width: 50, height: 50, display: "flex", justifyContent: "center", alignItems: "center", boxSizing: "border-box" }}>
+                    <img src="logo.png" alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: "10px" }} />
+                  </div>
+                  <div className="kc-title" style={{ fontSize: 22, color: "#1A1A1A" }}>
+                    KASICRED
+                  </div>
+                </div>
 
-                <label className="kc-label">Market or area</label>
-                <input className="kc-input" value={form.area} onChange={update("area")} placeholder="e.g. Bree Street Market, Jozi" required />
+                <div className="kc-title" style={{ fontSize: 24, color: "#1A1A1A", marginTop: 4 }}>
+                  Create Account
+                </div>
+                <div style={{ fontSize: 12, color: "#333", marginBottom: 12, fontWeight: 500 }}>
+                  Already Registered? <span className="kc-link" onClick={() => setView("login")}>Log in here.</span>
+                </div>
 
-                <label className="kc-label">Phone number</label>
-                <input className="kc-input" value={form.phone} onChange={update("phone")} placeholder="071 234 5678" required />
+                <form onSubmit={handleRegister} style={{ width: "100%" }}>
+                  <label className="kc-field-label">Vendor/Stall Name</label>
+                  <input className="kc-input-box" value={form.name} onChange={update("name")} placeholder="Jiara Martins" required />
 
-                <label className="kc-label">What do you sell?</label>
-                <input className="kc-input" value={form.sells} onChange={update("sells")} placeholder="e.g. Vetkoek, airtime, sweets" required />
+                  <label className="kc-field-label">Market/Area</label>
+                  <input className="kc-input-box" value={form.area} onChange={update("area")} placeholder="Bree Street Market" required />
 
-                <label className="kc-label">Password</label>
-                <input className="kc-input" type="password" value={form.password} onChange={update("password")} placeholder="••••••••" required />
+                  <label className="kc-field-label">Phone Number</label>
+                  <input className="kc-input-box" value={form.phone} onChange={update("phone")} placeholder="0712345678" required />
 
-                <button className="kc-btn" type="submit" disabled={submitting}>
-                  {submitting ? "Creating..." : "Complete Registration"}
-                </button>
-              </form>
+                  <label className="kc-field-label">What do you sell?</label>
+                  <input className="kc-input-box" value={form.sells} onChange={update("sells")} placeholder="Scones, sweets, vetkoek" required />
+
+                  <label className="kc-field-label">Password</label>
+                  <input className="kc-input-box" type="password" value={form.password} onChange={update("password")} placeholder="******" required />
+
+                  <button className="kc-btn-purple" type="submit" disabled={submitting}>
+                    {submitting ? "Creating..." : "Sign up"}
+                  </button>
+                </form>
+              </div>
             )}
 
-            {/* 3. LOGIN VIEW */}
-            {view === "login" && (
-              <form onSubmit={handleLogin}>
-                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Vendor Login</div>
-
-                <label className="kc-label">Phone number</label>
-                <input className="kc-input" value={form.phone} onChange={update("phone")} placeholder="071 234 5678" required />
-
-                <label className="kc-label">Password</label>
-                <input className="kc-input" type="password" value={form.password} onChange={update("password")} placeholder="••••••••" required />
-
-                <button className="kc-btn" type="submit">
-                  Access Dashboard
-                </button>
-              </form>
-            )}
-
-            {/* 4. DASHBOARD VIEW */}
+            {/* 3. DASHBOARD VIEW */}
             {view === "dashboard" && (
-              <div style={{ marginTop: 4 }}>
-                <div style={{ fontSize: 13, color: "#888" }}>Dumela, {form.name || "Vendor"} 👋</div>
+              <div style={{ width: "100%", display: "flex", flexDirection: "column" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div className="kc-title" style={{ fontSize: 18 }}>KASICRED DASHBOARD</div>
+                  <button onClick={() => setView("login")} style={{ background: "none", border: "none", fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>Logout</button>
+                </div>
+
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#222", marginBottom: 12 }}>
+                  Dumela, {form.name || "Vendor"} 👋
+                </div>
 
                 {loading ? (
-                  <div style={{ fontSize: 13, color: "#666", marginTop: 30, textAlign: "center" }}>Loading metrics...</div>
+                  <div style={{ textAlign: "center", padding: "40px 0", fontWeight: 600 }}>Loading trust ledger...</div>
                 ) : (
                   <>
-                    <div
-                      style={{
-                        marginTop: 14,
-                        background: "#111111",
-                        border: "1px dashed #444444",
-                        borderRadius: 6,
-                        padding: "18px 16px",
-                      }}
-                    >
-                      <div className="kc-mono" style={{ fontSize: 10, color: "#777", letterSpacing: 1 }}>
-                        KASICRED TRUST RECEIPT
+                    <div style={{ background: "#F3C68F", border: "2px dashed #5C3A19", borderRadius: 14, padding: "16px", marginBottom: 16 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: "#5C3A19" }}>TRUST RECEIPT · ON-CHAIN</div>
+                      <div className="kc-title" style={{ fontSize: 32, marginTop: 4 }}>
+                        {trustPct}<span style={{ fontSize: 16, fontWeight: 500 }}> /100</span>
                       </div>
-                      <div className="kc-display" style={{ fontSize: 34, fontWeight: 700, marginTop: 4 }}>
-                        {trustPct}<span style={{ fontSize: 16, fontWeight: 400, color: "#888" }}> /100</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                        <span style={{ fontSize: 11.5, color: "#888" }}>Trust score</span>
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 600,
-                            color: "#000000",
-                            background: isLoanReady ? "#ffffff" : "#aaaaaa",
-                            padding: "2px 8px",
-                            borderRadius: 999,
-                          }}
-                        >
-                          {isLoanReady ? "LOAN READY" : "BUILDING"}
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600 }}>Status:</span>
+                        <span style={{ background: isLoanReady ? "#00B654" : "#5C3A19", color: "#fff", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 700 }}>
+                          {isLoanReady ? "LOAN READY" : "BUILDING TRUST"}
                         </span>
                       </div>
 
-                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 12.5 }}>
-                        <span style={{ color: "#888" }}>Verified sales</span>
-                        <span className="kc-mono">{reviewCount}</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, fontSize: 13, fontWeight: 600 }}>
+                        <span>Verified Sales</span>
+                        <span>{reviewCount}</span>
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 12.5 }}>
-                        <span style={{ color: "#888" }}>Avg rating</span>
-                        <span className="kc-mono">{avgScore.toFixed(1)} ★</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 13, fontWeight: 600 }}>
+                        <span>Avg Rating</span>
+                        <span>{avgScore.toFixed(1)} ★</span>
                       </div>
                     </div>
 
-                    <div style={{ fontSize: 12, color: "#888", marginTop: 22, marginBottom: 8, fontWeight: 600 }}>
-                      Recent verified ratings
+                    <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", marginBottom: 8, color: "#333" }}>
+                      Recent Verified Ratings
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 160, overflowY: "auto" }}>
                       {reviews.map((r, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            background: "#111111",
-                            border: "1px solid #222",
-                            borderRadius: 6,
-                            padding: "9px 12px",
-                            fontSize: 12.5,
-                          }}
-                        >
-                          <div>
-                            <Stars n={r.stars} />
-                          </div>
-                          <div style={{ textAlign: "right" }}>
-                            <div style={{ color: "#777", fontSize: 11 }}>{r.time}</div>
-                            <div className="kc-mono" style={{ color: "#555", fontSize: 10 }}>{r.hash}</div>
+                        <div key={i} style={{ background: "#F3C68F", border: "1px solid #5C3A19", borderRadius: 10, padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <Stars n={r.score || r.stars} />
+                          <div style={{ textAlign: "right", fontSize: 11 }}>
+                            <div style={{ fontWeight: 600 }}>{r.time}</div>
+                            <div style={{ opacity: 0.6, fontSize: 9, fontFamily: "monospace" }}>{r.hash ? r.hash.slice(0,8) : "—"}</div>
                           </div>
                         </div>
                       ))}
                     </div>
 
-                    <button className="kc-btn" style={{ background: "#ffffff", color: "#000000", marginTop: 20 }}>
-                      Download proof-of-business PDF
-                    </button>
-                    
-                    <button className="kc-btn-outline" onClick={() => setView("home")} style={{ marginTop: 10 }}>
-                      Log Out
+                    <button className="kc-btn-green" style={{ marginTop: 16 }}>
+                      Download Proof-of-Business PDF
                     </button>
                   </>
                 )}
