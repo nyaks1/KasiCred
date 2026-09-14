@@ -127,6 +127,7 @@ def chain_status():
 def register_vendor(payload: VendorRegistrationPayload):
     clean_phone = payload.phone_number.strip().replace(" ", "").lower()
     mapped_address = phone_to_vendor_address(clean_phone)
+    hashed_pwd = hashlib.sha256(payload.password.encode()).hexdigest()
 
     profile = db.upsert_vendor(
         phone=clean_phone,
@@ -134,6 +135,7 @@ def register_vendor(payload: VendorRegistrationPayload):
         market_area=payload.market_area.strip(),
         category_items=payload.category_items.strip(),
         wallet_address=mapped_address,
+        password_hash=hashed_pwd,
     )
 
     return {
