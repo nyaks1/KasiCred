@@ -144,6 +144,25 @@ def register_vendor(payload: VendorRegistrationPayload):
         "profile": profile,
     }
 
+@app.post("/vendor/login")
+def login_vendor(payload: VendorLoginPayload):
+    clean_phone = payload.phone_number.strip().replace(" ", "").lower()
+    profile = db.get_vendor(clean_phone)
+    
+    if not profile:
+        raise HTTPException(status_code=404, detail="Vendor not found. Please register first.")
+        
+    hashed_pwd = hashlib.sha256(payload.password.encode()).hexdigest()
+    
+    if profile.get("password_hash") and profile["password_hash"] != hashed_pwd:
+        raise HTTPException(status_code=401, detail="Invalid password.")
+        
+    return {
+        "status": "success",
+        "message": f"Welcome back, {profile['store_name']}!",
+        "profile": profile,
+    }
+
 
 @app.get("/vendor/phone/{phone_or_tag}")
 def get_vendor_by_phone(phone_or_tag: str):
