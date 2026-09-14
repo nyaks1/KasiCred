@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS vendors (
     market_area     TEXT NOT NULL DEFAULT 'Unknown',
     category_items  TEXT NOT NULL DEFAULT 'General Merchandise',
     wallet_address  TEXT NOT NULL,
+    password_hash   TEXT NOT NULL,
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
