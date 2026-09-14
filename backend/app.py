@@ -93,6 +93,7 @@ class VendorRegistrationPayload(BaseModel):
     phone_number: str
     market_area: str
     category_items: str
+    password: str
 
 
 class UnifiedReviewPayload(BaseModel):
