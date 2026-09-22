@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS vendors (
     market_area     TEXT NOT NULL DEFAULT 'Unknown',
     category_items  TEXT NOT NULL DEFAULT 'General Merchandise',
     wallet_address  TEXT NOT NULL,
+    password_hash   TEXT NOT NULL,
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -59,17 +60,18 @@ def ensure_vendor(phone: str, wallet_address: str, store_name: str = "Unregister
 
 
 def upsert_vendor(phone: str, store_name: str, market_area: str,
-                  category_items: str, wallet_address: str) -> dict:
+                  category_items: str, wallet_address: str, password_hash: str = "") -> dict:
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO vendors (phone, store_name, market_area, category_items, wallet_address) "
-            "VALUES (?, ?, ?, ?, ?) "
+            "VALUES (?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(phone) DO UPDATE SET "
             "store_name = excluded.store_name, "
             "market_area = excluded.market_area, "
             "category_items = excluded.category_items, "
             "wallet_address = excluded.wallet_address",
-            (phone, store_name, market_area, category_items, wallet_address),
+            "password_hash = CASE WHEN excluded.password_hash != '' THEN excluded.password_hash ELSE vendors.password_hash END",
+            (phone, store_name, market_area, category_items, wallet_address, password_hash),
         )
     return get_vendor(phone)
 

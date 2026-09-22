@@ -93,7 +93,11 @@ class VendorRegistrationPayload(BaseModel):
     phone_number: str
     market_area: str
     category_items: str
+    password: str
 
+class VendorLoginPayload(BaseModel):
+    phone_number: str
+    password: str
 
 class UnifiedReviewPayload(BaseModel):
     phone: str
@@ -123,6 +127,7 @@ def chain_status():
 def register_vendor(payload: VendorRegistrationPayload):
     clean_phone = payload.phone_number.strip().replace(" ", "").lower()
     mapped_address = phone_to_vendor_address(clean_phone)
+    hashed_pwd = hashlib.sha256(payload.password.encode()).hexdigest()
 
     profile = db.upsert_vendor(
         phone=clean_phone,
@@ -130,11 +135,31 @@ def register_vendor(payload: VendorRegistrationPayload):
         market_area=payload.market_area.strip(),
         category_items=payload.category_items.strip(),
         wallet_address=mapped_address,
+        password_hash=hashed_pwd,
     )
 
     return {
         "status": "success",
         "message": f"Stall '{payload.store_name}' registered successfully!",
+        "profile": profile,
+    }
+
+@app.post("/vendor/login")
+def login_vendor(payload: VendorLoginPayload):
+    clean_phone = payload.phone_number.strip().replace(" ", "").lower()
+    profile = db.get_vendor(clean_phone)
+    
+    if not profile:
+        raise HTTPException(status_code=404, detail="Vendor not found. Please register first.")
+        
+    hashed_pwd = hashlib.sha256(payload.password.encode()).hexdigest()
+    
+    if profile.get("password_hash") and profile["password_hash"] != hashed_pwd:
+        raise HTTPException(status_code=401, detail="Invalid password.")
+        
+    return {
+        "status": "success",
+        "message": f"Welcome back, {profile['store_name']}!",
         "profile": profile,
     }
 

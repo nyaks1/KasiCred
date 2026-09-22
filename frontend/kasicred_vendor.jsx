@@ -286,8 +286,8 @@ function KasiCredVendor() {
                 ))}
               </div>
 
-              <button className="kc-btn" style={{ background: "#1B7A6E", color: "#F5F0E6" }}>
-                Download proof-of-business PDF
+              <button className="kc-btn-white" onClick={() => window.generateKasiCredPDF(vendor, trustPct, isLoanReady, reviewCount, avgScore, reviews)}>
+                Download Proof of Business PDF
               </button>
             </>
           )}
