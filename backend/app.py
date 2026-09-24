@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -355,3 +356,40 @@ def _commit_survey_to_celo(phone_key: str, session: dict, prompts: dict) -> dict
         "transaction_hash": tx_hash,
         "explorer_url": f"https://celo-sepolia.blockscout.com/tx/{tx_hash}" if tx_hash else None,
     }
+
+@app.post("/api/report/create-link")
+def create_report_link(payload: dict):
+    """Generates a unique shareable report ID for a vendor."""
+    vendor_phone = payload.phone_number
+    report_id = str(uuid.uuid4())[:8].lower()
+    
+    with db.get_connection() as conn:
+        conn.execute(
+            "INSERT INTO paid_reports (report_id, vendor_phone, is_paid) VALUES (?, ?, 0)",
+            (report_id, vendor_phone)
+        )
+    return {"report_id": report_id, "share_url": f"https://kasicred-api.onrender.com/report/{report_id}"}
+
+@app.get("/api/report/status/{report_id}")
+def check_report_status(report_id: str):
+    """Checks if the R30 paywall has been cleared for this report link."""
+    with db.get_connection() as conn:
+        row = conn.execute("SELECT is_paid, vendor_phone FROM paid_reports WHERE report_id = ?", (report_id,)).fetchone()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Report link not found.")
+    
+    return {"is_paid": bool(row["is_paid"]), "vendor_phone": row["vendor_phone"]}
+
+@app.post("/api/webhook/yoco-payment")
+def simulate_yoco_payment(payload: dict):
+    """Webhook simulated for Yoco / PayFast confirming the R30 (3000 cents) payment."""
+    report_id = payload.get("report_id")
+    amount = payload.get("amount", 0)
+    
+    if amount >= 3000 and report_id:
+        with db.get_connection() as conn:
+            conn.execute("UPDATE paid_reports SET is_paid = 1 WHERE report_id = ?", (report_id,))
+        return {"status": "success", "message": "Paywall unlocked successfully."}
+    
+    raise HTTPException(status_code=400, detail="Invalid payment amount or report ID.")
