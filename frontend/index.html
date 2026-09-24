@@ -166,6 +166,23 @@
         const isLoanReady = trustPct >= 70;
         const activeBlocks = Math.round((trustPct / 100) * 10);
 
+        const generateShareableLink = (phone) => {
+          fetch(`${API_URL}/api/report/create-link`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone_number: phone })
+          })
+          .then(res => res.json())
+          .then(data => {
+            const link = `https://kasicred.onrender.com/view-report.html?id=${data.report_id}`;
+            prompt("Copy this shareable link for investors or buyers (R30 paywall active):", link);
+          })
+          .catch(() => {
+            alert("Offline demo link: kasicred.onrender.com/view-report.html?id=demo_kc_99");
+          });
+        };
+
+        
         return (
           <div
             style={{
@@ -386,9 +403,11 @@
                     </div>
 
                     {/* Download PDF Button */}
-                    <button className="kc-btn-white">
-                      Download Proof of Business PDF
-                    </button>
+                    <div style="width: 100%; margin-top: 10px;">
+                      <button className="kc-btn-white" onClick={() => generateShareableLink(vendor.phone)}>
+                        Generate Shareable Report Link 
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
