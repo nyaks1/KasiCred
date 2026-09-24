@@ -1,6 +1,8 @@
 # KasiCred
 
-Blockchain-based trust and credit ledger for informal street vendors in South Africa.
+**Current product frame (read first):** [research/gkhack26/FRAMING.md](research/gkhack26/FRAMING.md) — proof-of-income pack on WhatsApp (not a credit score); microlenders pay to verify; blockchain is the integrity seal. Team research: [research/README.md](research/README.md).
+
+Blockchain-adjacent trust and **proof-of-income** tooling for informal street vendors in South Africa.
 
 **Live:** [Vendor Dashboard](https://kasicred.onrender.com/) · [API Docs / WhatsApp Sim](https://kasicred-28bu.onrender.com/docs#/) · [Smart Contract (Celo Sepolia)](https://celo-sepolia.blockscout.com/address/0x40f805866f5923b376B5c722767cF17DD5f9d9Cb)
 
