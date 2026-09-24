@@ -29,6 +29,13 @@ CREATE TABLE IF NOT EXISTS reviews (
 
 CREATE INDEX IF NOT EXISTS idx_reviews_vendor ON reviews(vendor_id);
 CREATE INDEX IF NOT EXISTS idx_vendors_phone  ON vendors(phone);
+
+CREATE TABLE IF NOT EXISTS paid_reports (
+    report_id    TEXT PRIMARY KEY,
+    vendor_phone TEXT NOT NULL,
+    is_paid      INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
