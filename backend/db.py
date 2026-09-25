@@ -49,6 +49,10 @@ def get_connection() -> sqlite3.Connection:
 def init_db() -> None:
     with get_connection() as conn:
         conn.executescript(SCHEMA)
+        try:
+            conn.execute("ALTER TABLE vendors ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass
 
 
 def ensure_vendor(phone: str, wallet_address: str, store_name: str = "Unregistered Stall",
@@ -70,14 +74,16 @@ def upsert_vendor(phone: str, store_name: str, market_area: str,
                   category_items: str, wallet_address: str, password_hash: str = "") -> dict:
     with get_connection() as conn:
         conn.execute(
-            "INSERT INTO vendors (phone, store_name, market_area, category_items, wallet_address) "
-            "VALUES (?, ?, ?, ?, ?, ?) "
-            "ON CONFLICT(phone) DO UPDATE SET "
-            "store_name = excluded.store_name, "
-            "market_area = excluded.market_area, "
-            "category_items = excluded.category_items, "
-            "wallet_address = excluded.wallet_address",
-            "password_hash = CASE WHEN excluded.password_hash != '' THEN excluded.password_hash ELSE vendors.password_hash END",
+            """
+            INSERT INTO vendors (phone, store_name, market_area, category_items, wallet_address, password_hash) 
+            VALUES (?, ?, ?, ?, ?, ?) 
+            ON CONFLICT(phone) DO UPDATE SET 
+            store_name = excluded.store_name, 
+            market_area = excluded.market_area, 
+            category_items = excluded.category_items, 
+            wallet_address = excluded.wallet_address,
+            password_hash = CASE WHEN excluded.password_hash != '' THEN excluded.password_hash ELSE vendors.password_hash END
+            """,
             (phone, store_name, market_area, category_items, wallet_address, password_hash),
         )
     return get_vendor(phone)
