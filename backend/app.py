@@ -7,6 +7,9 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
 
 from backend import db
 from backend.celo_client import (
@@ -75,6 +78,9 @@ app = FastAPI(
     description="Maps human identifiers to on-chain Celo Sepolia trust records and manages vendor registration.",
     lifespan=lifespan,
 )
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend")
 
 app.add_middleware(
     CORSMiddleware,
@@ -389,9 +395,21 @@ def _commit_survey_to_celo(phone_key: str, session: dict, prompts: dict) -> dict
         "explorer_url": f"https://celo-sepolia.blockscout.com/tx/{tx_hash}" if tx_hash else None,
     }
 
+@app.get("/view-report.html")
+def serve_report_view(id: str = None):
+    
+    file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "view-report.html")
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    
+    alt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "view-report.html")
+    if os.path.exists(alt_path):
+        return FileResponse(alt_path)
+        
+    return {"detail": "Not Found - File missing from server path"}
+
 @app.post("/api/report/create-link")
 def create_report_link(payload: ReportLinkPayload):
-    """Generates a unique shareable report ID for a vendor."""
     vendor_phone = payload.phone_number
     report_id = str(uuid.uuid4())[:8].lower()
     
@@ -400,8 +418,9 @@ def create_report_link(payload: ReportLinkPayload):
             "INSERT INTO paid_reports (report_id, vendor_phone, is_paid) VALUES (?, ?, 0)",
             (report_id, vendor_phone)
         )
-    return {"report_id": report_id,
-             "share_url": f"https://kasicred-28bu.onrender.com/view-report.html?id={report_id}"
+    return {
+        "report_id": report_id,
+        "share_url": f"https://kasicred-28bu.onrender.com/view-report.html?id={report_id}"
     }
 
 
@@ -432,3 +451,6 @@ def simulate_yoco_payment(payload: dict):
         return {"status": "success", "message": "Paywall unlocked successfully."}
     
     raise HTTPException(status_code=400, detail="Invalid payment amount or report ID.")
+
+
+app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")

@@ -217,18 +217,24 @@
         const activeBlocks = Math.round((trustPct / 100) * 10);
 
         const generateShareableLink = (phone) => {
+          const activePhone = phone || vendor.phone || "0723456789";
+
           fetch(`${API_URL}/api/report/create-link`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone_number: phone })
+            body: JSON.stringify({ phone_number: activePhone })
           })
           .then(res => res.json())
           .then(data => {
-            const link = `https://kasicred-28bu.onrender.com/view-report.html?id=${data.report_id}`;
+            const reportId = data.report_id || "demo_" + Math.random().toString(36).substring(2, 8);
+            const link = `https://kasicred-28bu.onrender.com/view-report.html?id=${reportId}`;
             prompt("Copy this shareable link for investors or buyers (R30 paywall active):", link);
           })
           .catch(() => {
-            alert("Offline demo link: https://kasicred-28bu.onrender.com/view-report.html?id=demo_id");
+
+            const fallbackId = "demo_khati";
+            const link = `https://kasicred-28bu.onrender.com/view-report.html?id=${fallbackId}`;
+            prompt("Offline Demo Link:", link);
           });
         };
 
