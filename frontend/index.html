@@ -153,8 +153,21 @@
               setView("dashboard");
             })
             .catch(() => {
-              // Fallback for demo mode
-              setVendor(f => ({ ...f, name: f.name || "Jiara Martins", area: "Bree Street Market", sells: "Scones, sweets, vetkoek", phone: form.phone }));
+              let mockName = "Jiara Martins";
+              let mockArea = "Bree Street Market";
+              let mockSells = "Scones, sweets, vetkoek";
+              
+              if (form.phone === "0712345678") {
+                mockName = "Liya's Stall";
+                mockArea = "Bree Street Market";
+                mockSells = "Vegetables & Fruit";
+              } else if (form.phone === "0723456789") {
+                mockName = "Khati's Sweets";
+                mockArea = "Randburg CBD Market";
+                mockSells = "Sweets, treats & snacks";
+              }
+
+              setVendor({ name: mockName, area: mockArea, sells: mockSells, phone: form.phone });
               setView("dashboard");
             })
             .finally(() => setSubmitting(false));
