@@ -157,7 +157,7 @@ def login_vendor(payload: VendorLoginPayload):
             "profile": {
                 "store_name": "Liya's Stall",
                 "market_area": "Bree Street Market",
-                "category_items": "Vegetables & Fruit",
+                "category_items": "Fruits and Vegetables",
                 "phone_number": "0712345678"
             },
             "trust_metrics": {
@@ -400,7 +400,9 @@ def create_report_link(payload: ReportLinkPayload):
             "INSERT INTO paid_reports (report_id, vendor_phone, is_paid) VALUES (?, ?, 0)",
             (report_id, vendor_phone)
         )
-    return {"report_id": report_id, "share_url": f"file:///Users/macbook/Desktop/Personal/Projects/KasiCred/view-report.html?id=${report_id}"}
+    return {"report_id": report_id,
+             "share_url": f"https://kasicred-28bu.onrender.com/view-report.html?id={report_id}"
+    }
 
 
 @app.get("/api/report/status/{report_id}")

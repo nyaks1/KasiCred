@@ -20,7 +20,7 @@
   </div>
 
   <script>
-    const API_URL = "https://kasicred-api.onrender.com";
+    const API_URL = "https://kasicred-28bu.onrender.com";
     const urlParams = new URLSearchParams(window.location.search);
     const reportId = urlParams.get("id") || "demo_id";
 
@@ -28,6 +28,7 @@
       fetch(`${API_URL}/api/report/status/${reportId}`)
         .then(res => res.json())
         .then(data => {
+          currentVendorData = data;
           const actionArea = document.getElementById("action-area");
           const statusText = document.getElementById("status-text");
           
@@ -65,8 +66,19 @@
     }
 
     function downloadPDF() {
-      const mockVendor = { name: "Verified Stall", area: "Randburg Market", sells: "General Goods" };
-      window.generateKasiCredPDF(mockVendor, 85, true, 24, 4.5, []);
+      const vendorObj = { 
+        name: currentVendorData.store_name || "Verified Stall", 
+        area: currentVendorData.market_area || "Randburg Market", 
+        sells: currentVendorData.category_items || "General Goods" 
+      };
+
+      const score = currentVendorData.average_score || 4.2;
+      const reviewCount = currentVendorData.review_count || 24;
+      const trustPct = Math.round((score / 5) * 100);
+      const isReady = currentVendorData.is_loan_ready || (trustPct >= 70);
+      const blocksCount = Math.round((trustPct / 100) * 10);
+
+      window.generateKasiCredPDF(vendorObj, trustPct, isReady, reviewCount, score, []);
     }
 
     checkStatus();
