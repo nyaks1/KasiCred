@@ -132,6 +132,21 @@ def root():
 def chain_status():
     return verify_connection()
 
+@app.post("/admin/login")
+def admin_login(creds: dict):
+    phone = creds.get("phone_number")
+    password = creds.get("password")
+    
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT password_hash FROM admins WHERE phone_number = ?", (phone,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row or not pwd_context.verify(password, row[0]):
+        raise HTTPException(status_code=401, detail="Invalid admin credentials")
+        
+    return {"status": "success", "message": "Admin authenticated"}
 
 @app.post("/vendor/register")
 def register_vendor(payload: VendorRegistrationPayload):
