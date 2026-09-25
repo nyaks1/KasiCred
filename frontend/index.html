@@ -28,7 +28,7 @@
     <script type="text/babel">
       const { useState, useEffect } = React;
 
-      const API_URL = window.KASICRED_API_URL || "http://localhost:8000";
+      const API_URL = window.KASICRED_API_URL || "https://kasicred-api.onrender.com";
 
       const MOCK_FEED = [
         { review_text: "Great fresh vetkoek every morning!", time: "2m ago", hash: "0x8f2a1c" },
@@ -174,11 +174,11 @@
           })
           .then(res => res.json())
           .then(data => {
-            const link = `http://127.0.0.1:5500/frontend/view-report.html?id=${data.report_id}`;
+            const link = `https://kasicred-28bu.onrender.com/view-report.html?id=${data.report_id}`;
             prompt("Copy this shareable link for investors or buyers (R30 paywall active):", link);
           })
           .catch(() => {
-            alert("Offline demo link: kasicred.onrender.com/view-report.html?id=demo_kc_99");
+            alert("Offline demo link: https://kasicred-28bu.onrender.com/view-report.html?id=demo_id");
           });
         };
 
