@@ -109,6 +109,8 @@ class UnifiedReviewPayload(BaseModel):
     review_text: Optional[str] = None
     score: Optional[int] = None
 
+class ReportLinkPayload(BaseModel):
+    phone_number: str
 
 # =====================================================================
 # API Endpoints
@@ -358,7 +360,7 @@ def _commit_survey_to_celo(phone_key: str, session: dict, prompts: dict) -> dict
     }
 
 @app.post("/api/report/create-link")
-def create_report_link(payload: dict):
+def create_report_link(payload: ReportLinkPayload):
     """Generates a unique shareable report ID for a vendor."""
     vendor_phone = payload.phone_number
     report_id = str(uuid.uuid4())[:8].lower()
@@ -369,6 +371,7 @@ def create_report_link(payload: dict):
             (report_id, vendor_phone)
         )
     return {"report_id": report_id, "share_url": f"https://kasicred-api.onrender.com/report/{report_id}"}
+
 
 @app.get("/api/report/status/{report_id}")
 def check_report_status(report_id: str):
