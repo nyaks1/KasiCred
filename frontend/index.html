@@ -28,7 +28,7 @@
     <script type="text/babel">
       const { useState, useEffect } = React;
 
-      const API_URL = window.KASICRED_API_URL || "https://kasicred-api.onrender.com";
+      const API_URL = window.KASICRED_API_URL || "http://localhost:8000";
 
       const MOCK_FEED = [
         { review_text: "Great fresh vetkoek every morning!", time: "2m ago", hash: "0x8f2a1c" },
@@ -182,7 +182,7 @@
           });
         };
 
-        
+
         return (
           <div
             style={{
@@ -403,11 +403,11 @@
                     </div>
 
                     {/* Download PDF Button */}
-                    <div style="width: 100%; margin-top: 10px;">
-                      <button className="kc-btn-white" onClick={() => generateShareableLink(vendor.phone)}>
-                        Generate Shareable Report Link 
-                      </button>
-                    </div>
+                    <div style={{ width: "100%", marginTop: "10px" }}>
+                    <button className="kc-btn-white" onClick={() => generateShareableLink(vendor.phone)}>
+                      Generate Shareable Report Link
+                    </button>
+                  </div>
                   </>
                 )}
               </div>

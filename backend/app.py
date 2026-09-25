@@ -373,6 +373,10 @@ def create_report_link(payload: dict):
 @app.get("/api/report/status/{report_id}")
 def check_report_status(report_id: str):
     """Checks if the R30 paywall has been cleared for this report link."""
+
+    if report_id == "demo_id":
+        return {"is_paid": False, "vendor_phone": "0712345678"}
+    
     with db.get_connection() as conn:
         row = conn.execute("SELECT is_paid, vendor_phone FROM paid_reports WHERE report_id = ?", (report_id,)).fetchone()
     
