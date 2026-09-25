@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import uuid
+import httpx
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -489,5 +490,79 @@ async def receive_whatsapp_message(request: Request):
         
     return {"status": "ok"}
 
+@app.get("/webhook")
+def verify_whatsapp_webhook(
+    mode: str = Query(None, alias="hub.mode"),
+    token: str = Query(None, alias="hub.verify_token"),
+    challenge: str = Query(None, alias="hub.challenge")
+):
+    VERIFY_TOKEN = "kasicred_hackathon_token" 
+    if mode == "subscribe" and token == VERIFY_TOKEN:
+        return Response(content=challenge, media_type="text/plain")
+    raise HTTPException(status_code=403, detail="Verification token mismatch")
+
+
+@app.post("/webhook")
+async def receive_whatsapp_message(request: Request):
+    body = await request.json()
+    try:
+        entry = body["entry"][0]
+        change = entry["changes"][0]
+        value = change["value"]
+        
+        if "messages" in value:
+            message_data = value["messages"][0]
+            sender_phone = message_data["from"] 
+            
+            message_text = ""
+            media_url = None
+            
+            if "text" in message_data:
+                message_text = message_data["text"]["body"]
+            elif "audio" in message_data:
+                media_id = message_data["audio"]["id"]
+                media_url = f"whatsapp_media_id://{media_id}"
+            
+            survey_payload = UnifiedReviewPayload(
+                phone=sender_phone,
+                message=message_text,
+                media_url=media_url,
+                vendor_phone_or_tag="0725806332"  
+            )
+            
+            result = submit_vendor_review(survey_payload)
+            reply_text = result.get("reply")
+            
+            if reply_text:
+                await send_whatsapp_reply(sender_phone, reply_text)
+                
+    except Exception as e:
+        log.error(f"Webhook processing error: {e}")
+        
+    return {"status": "ok"}
+
+
+async def send_whatsapp_reply(recipient_phone: str, text: str):
+    token = os.getenv("WHATSAPP_ACCESS_TOKEN")
+    phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+    
+    if not token or not phone_number_id:
+        log.warning("WhatsApp credentials missing from environment variables.")
+        return
+
+    url = f"https://graph.facebook.com/v19.0/{phone_number_id}/messages"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": recipient_phone,
+        "type": "text",
+        "text": {"body": text}
+    }
+    
+    async with httpx.AsyncClient() as client:
+        await client.post(url, json=payload, headers=headers)
 
 app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
