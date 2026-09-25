@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>KasiCred — Gated Enterprise Report</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="pdfGenerator.jsx"></script>
+  <style>
+    body { font-family: Inter, sans-serif; background: #111; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+    .card { background: #E6A15C; color: #111; padding: 30px; border-radius: 20px; width: 380px; text-align: center; border: 3px solid #000; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .btn { background: #00B654; color: #fff; border: 2px solid #000; padding: 12px; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 15px; text-transform: uppercase; }
+    .btn-pay { background: #120099; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>KasiCred Verified Report</h2>
+    <p id="status-text">Checking payment status for R30 access fee...</p>
+    <div id="action-area"></div>
+  </div>
+
+  <script>
+    const API_URL = "https://kasicred-api.onrender.com";
+    const urlParams = new URLSearchParams(window.location.search);
+    const reportId = urlParams.get("id") || "demo_id";
+
+    function checkStatus() {
+      fetch(`${API_URL}/api/report/status/${reportId}`)
+        .then(res => res.json())
+        .then(data => {
+          const actionArea = document.getElementById("action-area");
+          const statusText = document.getElementById("status-text");
+          
+          if (data.is_paid) {
+            statusText.innerText = "Payment Confirmed! Your report is unlocked.";
+            actionArea.innerHTML = `<button class="btn" onclick="downloadPDF()">Download Structured PDF</button>`;
+          } else {
+            statusText.innerText = "This report is protected by a R30 review fee.";
+            actionArea.innerHTML = `
+              <p style="font-size: 13px; font-weight: 600;">Pay R30.00 via Yoco / Card to instantly view & download.</p>
+              <button class="btn btn-pay" onclick="simulatePayment()">Pay R30 Now (Simulate Checkout)</button>
+            `;
+          }
+        })
+        .catch(() => {
+          // Demo fallback
+          document.getElementById("status-text").innerText = "Demo Mode: Paywall active.";
+          document.getElementById("action-area.innerHTML = `<button class='btn' onclick='alert(\"Simulated payment success!\"); location.reload();'>Simulate R30 Payment</button>`";
+        });
+    }
+
+    function simulatePayment() {
+      fetch(`${API_URL}/api/webhook/yoco-payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ report_id: reportId, amount: 3000 })
+      }).then(() => {
+        alert("Payment successful! Unlocking report...");
+        location.reload();
+      });
+    }
+
+    function downloadPDF() {
+      const mockVendor = { name: "Verified Stall", area: "Randburg Market", sells: "General Goods" };
+      window.generateKasiCredPDF(mockVendor, 85, true, 24, 4.5, []);
+    }
+
+    checkStatus();
+  </script>
+</body>
+</html>
