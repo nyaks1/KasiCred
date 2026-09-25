@@ -30,10 +30,10 @@
 
       const API_URL = window.KASICRED_API_URL || "https://kasicred-28bu.onrender.com";
 
-      // const MOCK_FEED = [
-      //   { review_text: "Great fresh vetkoek every morning!", time: "2m ago", hash: "0x8f2a1c" },
-      //   { review_text: "Friendly service and good prices.", time: "1h ago", hash: "0x3c1e94" },
-      // ];
+      const MOCK_FEED = [
+        { review_text: "Great fresh vetkoek every morning!", time: "2m ago", hash: "0x8f2a1c" },
+        { review_text: "Friendly service and good prices.", time: "1h ago", hash: "0x3c1e94" },
+      ];
 
       function KasiCredApp() {
         const [view, setView] = useState("login");
@@ -53,6 +53,27 @@
           if (view !== "dashboard") return;
           const phone = (form.phone || vendor.phone || "").trim().replace(/\s/g, "").toLowerCase();
           if (!phone) return;
+
+          if (phone === "0712345678") {
+            setVendor({ name: "Liya's Stall", area: "Bree Street Market", sells: "Vegetables & Fruit", phone });
+            setMetrics({ average_score: 2.4, review_count: 34 });
+            setReviews([
+              { review_text: "Fresh tomatoes and spinach every morning!", time: "10m ago", hash: "0x7a2f1b" },
+              { review_text: "Good prices on pocket potatoes.", time: "3h ago", hash: "0x4d2c88" }
+            ]);
+            setLoading(false);
+            return;
+          }
+          if (phone === "0723456789") {
+            setVendor({ name: "Khati's Sweets", area: "Randburg Market", sells: "Sweets, treats & snacks", phone });
+            setMetrics({ average_score: 4.3, review_count: 29 });
+            setReviews([
+              { review_text: "Best sour worms and peanut brittle in the market!", time: "5m ago", hash: "0x9b3e12" },
+              { review_text: "Kids love the jelly tots and lollipops!", time: "2h ago", hash: "0x1a8f4c" }
+            ]);
+            setLoading(false);
+            return;
+          }
 
           setLoading(true);
           setApiError(null);
@@ -78,7 +99,6 @@
               setLoading(false);
             })
             .catch(() => {
-              // Keep current state if offline
               setLoading(false);
             });
         }, [view, form.phone]);
