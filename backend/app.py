@@ -4,7 +4,7 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
@@ -451,6 +451,43 @@ def simulate_yoco_payment(payload: dict):
         return {"status": "success", "message": "Paywall unlocked successfully."}
     
     raise HTTPException(status_code=400, detail="Invalid payment amount or report ID.")
+
+@app.get("/webhook")
+def verify_whatsapp_webhook(
+    mode: str = Query(None, alias="hub.mode"),
+    token: str = Query(None, alias="hub.verify_token"),
+    challenge: str = Query(None, alias="hub.challenge")
+):
+    VERIFY_TOKEN = "kasicred_hackathon_token" 
+    if mode == "subscribe" and token == VERIFY_TOKEN:
+        return Response(content=challenge, media_type="text/plain")
+    raise HTTPException(status_code=403, detail="Verification token mismatch")
+
+
+@app.post("/webhook")
+async def receive_whatsapp_message(request: Request):
+    body = await request.json()
+    try:
+        entry = body["entry"][0]
+        change = entry["changes"][0]
+        value = change["value"]
+        
+        if "messages" in value:
+            message_data = value["messages"][0]
+            sender_phone = message_data["from"]
+            message_text = message_data.get("text", {}).get("body", "")
+            
+            survey_payload = UnifiedReviewPayload(
+                phone=sender_phone,
+                message=message_text,
+                vendor_phone_or_tag="0712345678"
+            )
+            submit_vendor_review(survey_payload)
+            
+    except Exception as e:
+        log.error(f"Webhook processing error: {e}")
+        
+    return {"status": "ok"}
 
 
 app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
