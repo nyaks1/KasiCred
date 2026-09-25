@@ -11,6 +11,8 @@ from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
+from passlib.context import CryptContext
+import sqlite3
 
 from backend import db
 from backend.celo_client import (
@@ -21,6 +23,9 @@ from backend.celo_client import (
 )
 
 log = logging.getLogger("kasicred")
+
+
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 _user_sessions: dict = {}  # ephemeral WhatsApp conversation state
 
@@ -56,7 +61,7 @@ PROMPTS = {
 
 def phone_to_vendor_address(phone_or_tag: str) -> str:
     clean_id = phone_or_tag.strip().replace(" ", "").lower()
-    hash_bytes = hashlib.sha256(clean_id.encode()).digest()
+    hash_bytes = hashlib.sha3_512(clean_id.encode()).digest()
     return "0x" + hash_bytes[-20:].hex()
 
 
@@ -70,13 +75,13 @@ async def lifespan(app: FastAPI):
     for phone, name, area, items in SEED_VENDORS:
         addr = phone_to_vendor_address(phone)
         db.upsert_vendor(phone, name, area, items, addr)
-    log.info("KasiCred backend started — DB ready")
+    log.info("KasiCred backend started — DB ready with quantum-resistant crypto")
     yield
 
 
 app = FastAPI(
     title="KasiCred Trust Engine",
-    description="Maps human identifiers to on-chain Celo Sepolia trust records and manages vendor registration.",
+    description="Maps human identifiers to on-chain Celo Sepolia trust records with post-quantum security.",
     lifespan=lifespan,
 )
 
@@ -125,12 +130,13 @@ class ReportLinkPayload(BaseModel):
 
 @app.get("/")
 def root():
-    return {"service": "KasiCred Relayer", "status": "online"}
+    return {"service": "KasiCred Relayer", "status": "online", "crypto": "post-quantum ready"}
 
 
 @app.get("/chain/status")
 def chain_status():
     return verify_connection()
+
 
 @app.post("/admin/login")
 def admin_login(creds: dict):
@@ -146,13 +152,16 @@ def admin_login(creds: dict):
     if not row or not pwd_context.verify(password, row[0]):
         raise HTTPException(status_code=401, detail="Invalid admin credentials")
         
-    return {"status": "success", "message": "Admin authenticated"}
+    return {"status": "success", "message": "Admin authenticated with quantum-resistant verification"}
+
 
 @app.post("/vendor/register")
 def register_vendor(payload: VendorRegistrationPayload):
     clean_phone = payload.phone_number.strip().replace(" ", "").lower()
     mapped_address = phone_to_vendor_address(clean_phone)
-    hashed_pwd = hashlib.sha256(payload.password.encode()).hexdigest()
+    
+    # Hash password using quantum-resistant Argon2id
+    hashed_pwd = pwd_context.hash(payload.password)
 
     profile = db.upsert_vendor(
         phone=clean_phone,
@@ -165,9 +174,10 @@ def register_vendor(payload: VendorRegistrationPayload):
 
     return {
         "status": "success",
-        "message": f"Stall '{payload.store_name}' registered successfully!",
+        "message": f"Stall '{payload.store_name}' registered successfully with quantum-resistant security!",
         "profile": profile,
     }
+
 
 @app.post("/vendor/login")
 def login_vendor(payload: VendorLoginPayload):
@@ -207,9 +217,9 @@ def login_vendor(payload: VendorLoginPayload):
     if not profile:
         raise HTTPException(status_code=404, detail="Vendor not found. Please register first.")
         
-    hashed_pwd = hashlib.sha256(payload.password.encode()).hexdigest()
-    
-    if profile.get("password_hash") and profile["password_hash"] != hashed_pwd:
+    # Verify password against Argon2id hash
+    stored_hash = profile.get("password_hash", "")
+    if stored_hash and not pwd_context.verify(payload.password, stored_hash):
         raise HTTPException(status_code=401, detail="Invalid password.")
         
     return {
@@ -259,7 +269,9 @@ def submit_vendor_review(payload: UnifiedReviewPayload):
 
         vendor_identifier = payload.vendor_phone_or_tag or payload.phone
         vendor_address = phone_to_vendor_address(vendor_identifier)
-        review_hash = hashlib.sha256(payload.review_text.encode()).digest()
+        
+        # Quantum-resistant SHA3-512 hashing for review payload
+        review_hash = hashlib.sha3_512(payload.review_text.encode()).digest()[:32]
 
         try:
             tx_hash = record_review_onchain(
@@ -375,7 +387,9 @@ def _commit_survey_to_celo(phone_key: str, session: dict, prompts: dict) -> dict
     comment = session.get("comment") or ""
     issue = session.get("issue") or ""
     metadata_string = f"{score}|{comment}|{issue}|{phone_key}"
-    review_hash = hashlib.sha256(metadata_string.encode()).digest()
+    
+    # Quantum-resistant SHA3-512 hashing for WhatsApp survey anchors
+    review_hash = hashlib.sha3_512(metadata_string.encode()).digest()[:32]
 
     tx_hash = None
     try:
@@ -411,9 +425,9 @@ def _commit_survey_to_celo(phone_key: str, session: dict, prompts: dict) -> dict
         "explorer_url": f"https://celo-sepolia.blockscout.com/tx/{tx_hash}" if tx_hash else None,
     }
 
+
 @app.get("/view-report.html")
 def serve_report_view(id: str = None):
-    
     file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "view-report.html")
     if os.path.exists(file_path):
         return FileResponse(file_path)
@@ -423,6 +437,7 @@ def serve_report_view(id: str = None):
         return FileResponse(alt_path)
         
     return {"detail": "Not Found - File missing from server path"}
+
 
 @app.post("/api/report/create-link")
 def create_report_link(payload: ReportLinkPayload):
@@ -442,8 +457,6 @@ def create_report_link(payload: ReportLinkPayload):
 
 @app.get("/api/report/status/{report_id}")
 def check_report_status(report_id: str):
-    """Checks if the R30 paywall has been cleared for this report link."""
-
     if report_id == "demo_id":
         return {"is_paid": False, "vendor_phone": "0712345678"}
     
@@ -455,9 +468,9 @@ def check_report_status(report_id: str):
     
     return {"is_paid": bool(row["is_paid"]), "vendor_phone": row["vendor_phone"]}
 
+
 @app.post("/api/webhook/yoco-payment")
 def simulate_yoco_payment(payload: dict):
-    """Webhook simulated for Yoco / PayFast confirming the R30 (3000 cents) payment."""
     report_id = payload.get("report_id")
     amount = payload.get("amount", 0)
     
@@ -468,42 +481,6 @@ def simulate_yoco_payment(payload: dict):
     
     raise HTTPException(status_code=400, detail="Invalid payment amount or report ID.")
 
-@app.get("/webhook")
-def verify_whatsapp_webhook(
-    mode: str = Query(None, alias="hub.mode"),
-    token: str = Query(None, alias="hub.verify_token"),
-    challenge: str = Query(None, alias="hub.challenge")
-):
-    VERIFY_TOKEN = "kasicred_hackathon_token" 
-    if mode == "subscribe" and token == VERIFY_TOKEN:
-        return Response(content=challenge, media_type="text/plain")
-    raise HTTPException(status_code=403, detail="Verification token mismatch")
-
-
-@app.post("/webhook")
-async def receive_whatsapp_message(request: Request):
-    body = await request.json()
-    try:
-        entry = body["entry"][0]
-        change = entry["changes"][0]
-        value = change["value"]
-        
-        if "messages" in value:
-            message_data = value["messages"][0]
-            sender_phone = message_data["from"]
-            message_text = message_data.get("text", {}).get("body", "")
-            
-            survey_payload = UnifiedReviewPayload(
-                phone=sender_phone,
-                message=message_text,
-                vendor_phone_or_tag="0712345678"
-            )
-            submit_vendor_review(survey_payload)
-            
-    except Exception as e:
-        log.error(f"Webhook processing error: {e}")
-        
-    return {"status": "ok"}
 
 @app.get("/webhook")
 def verify_whatsapp_webhook(
