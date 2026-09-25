@@ -370,7 +370,7 @@ def create_report_link(payload: ReportLinkPayload):
             "INSERT INTO paid_reports (report_id, vendor_phone, is_paid) VALUES (?, ?, 0)",
             (report_id, vendor_phone)
         )
-    return {"report_id": report_id, "share_url": f"https://kasicred-api.onrender.com/report/{report_id}"}
+    return {"report_id": report_id, "share_url": f"file:///Users/macbook/Desktop/Personal/Projects/KasiCred/view-report.html?id=${report_id}"}
 
 
 @app.get("/api/report/status/{report_id}")

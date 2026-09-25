@@ -174,7 +174,7 @@
           })
           .then(res => res.json())
           .then(data => {
-            const link = `https://kasicred.onrender.com/view-report.html?id=${data.report_id}`;
+            const link = `http://127.0.0.1:5500/frontend/view-report.html?id=${data.report_id}`;
             prompt("Copy this shareable link for investors or buyers (R30 paywall active):", link);
           })
           .catch(() => {
