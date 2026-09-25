@@ -32,9 +32,12 @@
           const statusText = document.getElementById("status-text");
           
           if (data.is_paid) {
-            statusText.innerText = "Payment Confirmed! Your report is unlocked.";
-            actionArea.innerHTML = `<button class="btn" onclick="downloadPDF()">Download Structured PDF</button>`;
-          } else {
+                statusText.innerText = "Payment Confirmed! Your report is unlocked.";
+                actionArea.innerHTML = `
+                <p style="font-size: 13px; font-weight: 500; margin-bottom: 12px;">Verified data stream active. You can now download your official PDF report.</p>
+                <button class="btn" onclick="downloadPDF()">Download Structured PDF 📄</button>
+                `;
+            } else {
             statusText.innerText = "This report is protected by a R30 review fee.";
             actionArea.innerHTML = `
               <p style="font-size: 13px; font-weight: 600;">Pay R30.00 via Yoco / Card to instantly view & download.</p>
