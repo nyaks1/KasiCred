@@ -1,11 +1,15 @@
 import hashlib
 import logging
+import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
 
 from backend import db
 from backend.celo_client import (
@@ -75,6 +79,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -108,6 +115,8 @@ class UnifiedReviewPayload(BaseModel):
     review_text: Optional[str] = None
     score: Optional[int] = None
 
+class ReportLinkPayload(BaseModel):
+    phone_number: str
 
 # =====================================================================
 # API Endpoints
@@ -147,6 +156,36 @@ def register_vendor(payload: VendorRegistrationPayload):
 @app.post("/vendor/login")
 def login_vendor(payload: VendorLoginPayload):
     clean_phone = payload.phone_number.strip().replace(" ", "").lower()
+
+    if clean_phone == "0712345678":
+        return {
+            "message": "Login successful",
+            "profile": {
+                "store_name": "Liya's Stall",
+                "market_area": "Bree Street Market",
+                "category_items": "Fruits and Vegetables",
+                "phone_number": "0712345678"
+            },
+            "trust_metrics": {
+                "average_score": 2.4,
+                "review_count": 34
+            }
+        }
+    elif clean_phone == "0723456789":
+        return {
+            "message": "Login successful",
+            "profile": {
+                "store_name": "Khati's Sweets",
+                "market_area": "Randburg Market",
+                "category_items": "Sweets, treats & snacks",
+                "phone_number": "0723456789"
+            },
+            "trust_metrics": {
+                "average_score": 4.3,
+                "review_count": 29
+            }
+        }
+    
     profile = db.get_vendor(clean_phone)
     
     if not profile:
@@ -355,3 +394,63 @@ def _commit_survey_to_celo(phone_key: str, session: dict, prompts: dict) -> dict
         "transaction_hash": tx_hash,
         "explorer_url": f"https://celo-sepolia.blockscout.com/tx/{tx_hash}" if tx_hash else None,
     }
+
+@app.get("/view-report.html")
+def serve_report_view(id: str = None):
+    
+    file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "view-report.html")
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    
+    alt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "view-report.html")
+    if os.path.exists(alt_path):
+        return FileResponse(alt_path)
+        
+    return {"detail": "Not Found - File missing from server path"}
+
+@app.post("/api/report/create-link")
+def create_report_link(payload: ReportLinkPayload):
+    vendor_phone = payload.phone_number
+    report_id = str(uuid.uuid4())[:8].lower()
+    
+    with db.get_connection() as conn:
+        conn.execute(
+            "INSERT INTO paid_reports (report_id, vendor_phone, is_paid) VALUES (?, ?, 0)",
+            (report_id, vendor_phone)
+        )
+    return {
+        "report_id": report_id,
+        "share_url": f"https://kasicred-28bu.onrender.com/view-report.html?id={report_id}"
+    }
+
+
+@app.get("/api/report/status/{report_id}")
+def check_report_status(report_id: str):
+    """Checks if the R30 paywall has been cleared for this report link."""
+
+    if report_id == "demo_id":
+        return {"is_paid": False, "vendor_phone": "0712345678"}
+    
+    with db.get_connection() as conn:
+        row = conn.execute("SELECT is_paid, vendor_phone FROM paid_reports WHERE report_id = ?", (report_id,)).fetchone()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Report link not found.")
+    
+    return {"is_paid": bool(row["is_paid"]), "vendor_phone": row["vendor_phone"]}
+
+@app.post("/api/webhook/yoco-payment")
+def simulate_yoco_payment(payload: dict):
+    """Webhook simulated for Yoco / PayFast confirming the R30 (3000 cents) payment."""
+    report_id = payload.get("report_id")
+    amount = payload.get("amount", 0)
+    
+    if amount >= 3000 and report_id:
+        with db.get_connection() as conn:
+            conn.execute("UPDATE paid_reports SET is_paid = 1 WHERE report_id = ?", (report_id,))
+        return {"status": "success", "message": "Paywall unlocked successfully."}
+    
+    raise HTTPException(status_code=400, detail="Invalid payment amount or report ID.")
+
+
+app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
