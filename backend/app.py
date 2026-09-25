@@ -172,14 +172,14 @@ def login_vendor(payload: VendorLoginPayload):
                 "review_count": 34
             }
         }
-    elif clean_phone == "0725806332":
+    elif clean_phone == "0723456789":
         return {
             "message": "Login successful",
             "profile": {
                 "store_name": "Khati's Sweets",
                 "market_area": "Randburg Market",
                 "category_items": "Sweets, treats & snacks",
-                "phone_number": "0725806332"
+                "phone_number": "0723456789"
             },
             "trust_metrics": {
                 "average_score": 4.3,
@@ -527,7 +527,7 @@ async def receive_whatsapp_message(request: Request):
                 phone=sender_phone,
                 message=message_text,
                 media_url=media_url,
-                vendor_phone_or_tag="0725806332"  
+                vendor_phone_or_tag="0723456789"  
             )
             
             result = submit_vendor_review(survey_payload)
