@@ -43,9 +43,10 @@
           }
         })
         .catch(() => {
-          // Demo fallback
+
           document.getElementById("status-text").innerText = "Demo Mode: Paywall active.";
-          document.getElementById("action-area.innerHTML = `<button class='btn' onclick='alert(\"Simulated payment success!\"); location.reload();'>Simulate R30 Payment</button>`";
+          document.getElementById("action-area").innerHTML = `<button class='btn' onclick='alert
+          ("Simulated payment success!"); location.reload();'>Simulate R30 Payment</button>`;
         });
     }
 
