@@ -29,6 +29,13 @@ CREATE TABLE IF NOT EXISTS reviews (
 
 CREATE INDEX IF NOT EXISTS idx_reviews_vendor ON reviews(vendor_id);
 CREATE INDEX IF NOT EXISTS idx_vendors_phone  ON vendors(phone);
+
+CREATE TABLE IF NOT EXISTS paid_reports (
+    report_id    TEXT PRIMARY KEY,
+    vendor_phone TEXT NOT NULL,
+    is_paid      INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
@@ -42,6 +49,10 @@ def get_connection() -> sqlite3.Connection:
 def init_db() -> None:
     with get_connection() as conn:
         conn.executescript(SCHEMA)
+        try:
+            conn.execute("ALTER TABLE vendors ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass
 
 
 def ensure_vendor(phone: str, wallet_address: str, store_name: str = "Unregistered Stall",
@@ -64,17 +75,14 @@ def upsert_vendor(phone: str, store_name: str, market_area: str,
     with get_connection() as conn:
         conn.execute(
             """
-            INSERT INTO vendors (phone, store_name, market_area, category_items, wallet_address, password_hash)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(phone) DO UPDATE SET
-                store_name = excluded.store_name,
-                market_area = excluded.market_area,
-                category_items = excluded.category_items,
-                wallet_address = excluded.wallet_address,
-                password_hash = CASE
-                    WHEN excluded.password_hash != '' THEN excluded.password_hash
-                    ELSE vendors.password_hash
-                END
+            INSERT INTO vendors (phone, store_name, market_area, category_items, wallet_address, password_hash) 
+            VALUES (?, ?, ?, ?, ?, ?) 
+            ON CONFLICT(phone) DO UPDATE SET 
+            store_name = excluded.store_name, 
+            market_area = excluded.market_area, 
+            category_items = excluded.category_items, 
+            wallet_address = excluded.wallet_address,
+            password_hash = CASE WHEN excluded.password_hash != '' THEN excluded.password_hash ELSE vendors.password_hash END
             """,
             (phone, store_name, market_area, category_items, wallet_address, password_hash),
         )

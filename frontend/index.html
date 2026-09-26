@@ -28,7 +28,7 @@
     <script type="text/babel">
       const { useState, useEffect } = React;
 
-      const API_URL = window.KASICRED_API_URL || "https://kasicred-api.onrender.com";
+      const API_URL = window.KASICRED_API_URL || "https://kasicred-28bu.onrender.com";
 
       const MOCK_FEED = [
         { review_text: "Great fresh vetkoek every morning!", time: "2m ago", hash: "0x8f2a1c" },
@@ -54,6 +54,27 @@
           const phone = (form.phone || vendor.phone || "").trim().replace(/\s/g, "").toLowerCase();
           if (!phone) return;
 
+          if (phone === "0712345678") {
+            setVendor({ name: "Liya's Stall", area: "Bree Street Market", sells: "Vegetables & Fruit", phone });
+            setMetrics({ average_score: 2.4, review_count: 34 });
+            setReviews([
+              { review_text: "Fresh tomatoes and spinach every morning!", time: "10m ago", hash: "0x7a2f1b" },
+              { review_text: "Good prices on pocket potatoes.", time: "3h ago", hash: "0x4d2c88" }
+            ]);
+            setLoading(false);
+            return;
+          }
+          if (phone === "0723456789") {
+            setVendor({ name: "Khati's Sweets", area: "Randburg Market", sells: "Sweets, treats & snacks", phone });
+            setMetrics({ average_score: 4.3, review_count: 29 });
+            setReviews([
+              { review_text: "Best sour worms and peanut brittle in the market!", time: "5m ago", hash: "0x9b3e12" },
+              { review_text: "Kids love the jelly tots and lollipops!", time: "2h ago", hash: "0x1a8f4c" }
+            ]);
+            setLoading(false);
+            return;
+          }
+
           setLoading(true);
           setApiError(null);
 
@@ -78,7 +99,6 @@
               setLoading(false);
             })
             .catch(() => {
-              // Keep current state if offline
               setLoading(false);
             });
         }, [view, form.phone]);
@@ -117,7 +137,6 @@
               setView("dashboard");
             })
             .catch(() => {
-              // Fallback to form inputs if backend is offline
               setVendor({ name: form.name, area: form.area, sells: form.sells, phone: form.phone });
               setView("dashboard");
             })
@@ -142,22 +161,53 @@
               return res.json();
             })
             .then((data) => {
-              if (data.profile) {
-                setVendor({
-                  name: data.profile.store_name,
-                  area: data.profile.market_area,
-                  sells: data.profile.category_items,
-                  phone: form.phone
-                });
-              }
+              applyVendorProfile(form.phone, data.profile);
               setView("dashboard");
             })
             .catch(() => {
-              // Fallback for demo mode
-              setVendor(f => ({ ...f, name: f.name || "Jiara Martins", area: "Bree Street Market", sells: "Scones, sweets, vetkoek", phone: form.phone }));
+              applyVendorProfile(form.phone, null);
               setView("dashboard");
             })
             .finally(() => setSubmitting(false));
+        };
+
+        const applyVendorProfile = (phone, profileProfile) => {
+          let name = profileProfile?.store_name;
+          let area = profileProfile?.market_area;
+          let sells = profileProfile?.category_items;
+          let customReviews = MOCK_FEED;
+          let score = 4.2;
+          let count = 23;
+
+          if (phone === "0712345678") {
+            name = name || "Liya's Stall";
+            area = area || "Bree Street Market";
+            sells = sells || "Vegetables & Fruit";
+            score = 2.4;
+            count = 34;
+            customReviews = [
+              { review_text: "Fresh tomatoes and spinach every morning!", time: "10m ago", hash: "0x7a2f1b" },
+              { review_text: "Good prices on pocket potatoes.", time: "3h ago", hash: "0x4d2c88" }
+            ];
+          } else if (phone === "0723456789") {
+            name = name || "Khati's Sweets";
+            area = area || "Randburg Market";
+            sells = sells || "Sweets, treats & snacks";
+            score = 4.3;
+            count = 29;
+            customReviews = [
+              { review_text: "Best sour worms and peanut brittle in the market!", time: "5m ago", hash: "0x9b3e12" },
+              { review_text: "Kids love the jelly tots and lollipops!", time: "2h ago", hash: "0x1a8f4c" }
+            ];
+          } else {
+            name = name || "Jiara Martins";
+            area = area || "Bree Street Market";
+            sells = sells || "Scones, sweets, vetkoek";
+          }
+
+          setVendor({ name, area, sells, phone });
+          setReviews(customReviews);
+          setMetrics({ average_score: score, review_count: count });
         };
 
         const avgScore = metrics?.average_score || 4.2;
@@ -165,6 +215,29 @@
         const reviewCount = metrics?.review_count || 23;
         const isLoanReady = trustPct >= 70;
         const activeBlocks = Math.round((trustPct / 100) * 10);
+
+        const generateShareableLink = (phone) => {
+          const activePhone = phone || vendor.phone || "0723456789";
+
+          fetch(`${API_URL}/api/report/create-link`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone_number: activePhone })
+          })
+          .then(res => res.json())
+          .then(data => {
+            const reportId = data.report_id || "demo_" + Math.random().toString(36).substring(2, 8);
+            const link = `https://kasicred-28bu.onrender.com/view-report.html?id=${reportId}`;
+            prompt("Copy this shareable link for investors or buyers (R30 paywall active):", link);
+          })
+          .catch(() => {
+
+            const fallbackId = "demo_khati";
+            const link = `https://kasicred-28bu.onrender.com/view-report.html?id=${fallbackId}`;
+            prompt("Offline Demo Link:", link);
+          });
+        };
+
 
         return (
           <div
@@ -386,9 +459,11 @@
                     </div>
 
                     {/* Download PDF Button */}
-                    <button className="kc-btn-white">
-                      Download Proof of Business PDF
+                    <div style={{ width: "100%", marginTop: "10px" }}>
+                    <button className="kc-btn-white" onClick={() => generateShareableLink(vendor.phone)}>
+                      Generate Shareable Report Link
                     </button>
+                  </div>
                   </>
                 )}
               </div>
