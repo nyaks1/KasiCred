@@ -65,8 +65,8 @@ def ensure_vendor(phone: str, wallet_address: str, store_name: str = "Unregister
         if row:
             return row["id"]
         cur = conn.execute(
-            "INSERT INTO vendors (phone, store_name, market_area, category_items, wallet_address) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO vendors (phone, store_name, market_area, category_items, wallet_address, password_hash) "
+            "VALUES (?, ?, ?, ?, ?, '')",
             (phone, store_name, market_area, category_items, wallet_address),
         )
         return cur.lastrowid
