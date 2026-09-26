@@ -1,7 +1,9 @@
 import os
 import sqlite3
+from passlib.context import CryptContext
 
 DB_PATH = os.getenv("KASICRED_DB_PATH", os.path.join(os.path.dirname(__file__), "kasicred.db"))
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS vendors (
@@ -72,6 +74,10 @@ def ensure_vendor(phone: str, wallet_address: str, store_name: str = "Unregister
 
 def upsert_vendor(phone: str, store_name: str, market_area: str,
                   category_items: str, wallet_address: str, password_hash: str = "") -> dict:
+
+    if password_hash and not password_hash.startswith("$argon2"):
+        password_hash = pwd_context.hash(password_hash)
+        
     with get_connection() as conn:
         conn.execute(
             """

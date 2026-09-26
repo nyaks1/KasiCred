@@ -19,8 +19,9 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="pdfGenerator.jsx"></script>
+    <script src="pdfGenerator.js"></script>
   </head>
   <body>
     <div id="root" style="width: 100%; display: flex; justify-content: center;"></div>
@@ -30,22 +31,24 @@
 
       const API_URL = window.KASICRED_API_URL || "https://kasicred-28bu.onrender.com";
 
-      const MOCK_FEED = [
-        { review_text: "Great fresh vetkoek every morning!", time: "2m ago", hash: "0x8f2a1c" },
-        { review_text: "Friendly service and good prices.", time: "1h ago", hash: "0x3c1e94" },
-      ];
-
       function KasiCredApp() {
-        const [view, setView] = useState("login");
-        // Store logged in vendor data separately from input form state
-        const [vendor, setVendor] = useState({ name: "Jiara Martins", area: "Bree Street Market", sells: "Scones, sweets, vetkoek", phone: "" });
+        const [view, setView] = useState("role-select");
+        const [selectedRole, setSelectedRole] = useState(null);
+        
+        const [vendor, setVendor] = useState({ name: "", area: "", sells: "", phone: "" });
         const [form, setForm] = useState({ name: "", area: "", phone: "", sells: "", password: "" });
         const [submitting, setSubmitting] = useState(false);
         const [apiError, setApiError] = useState(null);
         
         const [metrics, setMetrics] = useState(null);
-        const [reviews, setReviews] = useState(MOCK_FEED);
+        const [reviews, setReviews] = useState([]);
         const [loading, setLoading] = useState(false);
+
+        // Reviewer portal state
+        const [reviewTargetPhone, setReviewTargetPhone] = useState("");
+        const [reviewRating, setReviewRating] = useState("5");
+        const [reviewText, setReviewText] = useState("");
+        const [reviewStatus, setReviewStatus] = useState(null);
 
         const update = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -53,27 +56,6 @@
           if (view !== "dashboard") return;
           const phone = (form.phone || vendor.phone || "").trim().replace(/\s/g, "").toLowerCase();
           if (!phone) return;
-
-          if (phone === "0712345678") {
-            setVendor({ name: "Liya's Stall", area: "Bree Street Market", sells: "Vegetables & Fruit", phone });
-            setMetrics({ average_score: 2.4, review_count: 34 });
-            setReviews([
-              { review_text: "Fresh tomatoes and spinach every morning!", time: "10m ago", hash: "0x7a2f1b" },
-              { review_text: "Good prices on pocket potatoes.", time: "3h ago", hash: "0x4d2c88" }
-            ]);
-            setLoading(false);
-            return;
-          }
-          if (phone === "0723456789") {
-            setVendor({ name: "Khati's Sweets", area: "Randburg Market", sells: "Sweets, treats & snacks", phone });
-            setMetrics({ average_score: 4.3, review_count: 29 });
-            setReviews([
-              { review_text: "Best sour worms and peanut brittle in the market!", time: "5m ago", hash: "0x9b3e12" },
-              { review_text: "Kids love the jelly tots and lollipops!", time: "2h ago", hash: "0x1a8f4c" }
-            ]);
-            setLoading(false);
-            return;
-          }
 
           setLoading(true);
           setApiError(null);
@@ -86,19 +68,18 @@
             .then((data) => {
               if (data.profile) {
                 setVendor({
-                  name: data.profile.store_name || "Vendor Stall",
-                  area: data.profile.market_area || "Local Market",
-                  sells: data.profile.category_items || "General Goods",
+                  name: data.profile.store_name || "",
+                  area: data.profile.market_area || "",
+                  sells: data.profile.category_items || "",
                   phone: phone
                 });
               }
               setMetrics(data.trust_metrics);
-              if (data.recent_reviews && data.recent_reviews.length > 0) {
-                setReviews(data.recent_reviews);
-              }
+              setReviews(data.recent_reviews || []);
               setLoading(false);
             })
             .catch(() => {
+              setApiError("Could not fetch live dashboard data.");
               setLoading(false);
             });
         }, [view, form.phone]);
@@ -134,13 +115,14 @@
               } else {
                 setVendor({ name: form.name, area: form.area, sells: form.sells, phone: form.phone });
               }
+              setSubmitting(false);
               setView("dashboard");
             })
-            .catch(() => {
+            .catch((err) => {
               setVendor({ name: form.name, area: form.area, sells: form.sells, phone: form.phone });
+              setSubmitting(false);
               setView("dashboard");
-            })
-            .finally(() => setSubmitting(false));
+            });
         };
 
         const handleLogin = (e) => {
@@ -148,7 +130,9 @@
           setSubmitting(true);
           setApiError(null);
 
-          fetch(`${API_URL}/vendor/login`, {
+          const endpoint = selectedRole === "admin" ? `${API_URL}/admin/login` : `${API_URL}/vendor/login`;
+
+          fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -157,87 +141,71 @@
             }),
           })
             .then((res) => {
-              if (!res.ok) throw new Error("Invalid credentials");
+              if (!res.ok) throw new Error("Invalid credentials or access denied");
               return res.json();
             })
             .then((data) => {
-              applyVendorProfile(form.phone, data.profile);
-              setView("dashboard");
+              setSubmitting(false);
+              if (selectedRole === "admin") {
+                setView("admin-portal");
+              } else {
+                if (data.profile) {
+                  setVendor({
+                    name: data.profile.store_name,
+                    area: data.profile.market_area,
+                    sells: data.profile.category_items,
+                    phone: form.phone
+                  });
+                }
+                setView("dashboard");
+              }
             })
-            .catch(() => {
-              applyVendorProfile(form.phone, null);
-              setView("dashboard");
-            })
-            .finally(() => setSubmitting(false));
+            .catch((err) => {
+              if (selectedRole === "admin") {
+                setApiError(err.message || "Admin login failed");
+                setSubmitting(false);
+              } else {
+                setVendor({ name: "Jiara Martins", area: "Bree Street Market", sells: "Scones, sweets, vetkoek", phone: form.phone });
+                setSubmitting(false);
+                setView("dashboard");
+              }
+            });
         };
 
-        const applyVendorProfile = (phone, profileProfile) => {
-          let name = profileProfile?.store_name;
-          let area = profileProfile?.market_area;
-          let sells = profileProfile?.category_items;
-          let customReviews = MOCK_FEED;
-          let score = 4.2;
-          let count = 23;
+        const handleReviewSubmit = (e) => {
+          e.preventDefault();
+          setSubmitting(true);
+          setReviewStatus(null);
 
-          if (phone === "0712345678") {
-            name = name || "Liya's Stall";
-            area = area || "Bree Street Market";
-            sells = sells || "Vegetables & Fruit";
-            score = 2.4;
-            count = 34;
-            customReviews = [
-              { review_text: "Fresh tomatoes and spinach every morning!", time: "10m ago", hash: "0x7a2f1b" },
-              { review_text: "Good prices on pocket potatoes.", time: "3h ago", hash: "0x4d2c88" }
-            ];
-          } else if (phone === "0723456789") {
-            name = name || "Khati's Sweets";
-            area = area || "Randburg Market";
-            sells = sells || "Sweets, treats & snacks";
-            score = 4.3;
-            count = 29;
-            customReviews = [
-              { review_text: "Best sour worms and peanut brittle in the market!", time: "5m ago", hash: "0x9b3e12" },
-              { review_text: "Kids love the jelly tots and lollipops!", time: "2h ago", hash: "0x1a8f4c" }
-            ];
-          } else {
-            name = name || "Jiara Martins";
-            area = area || "Bree Street Market";
-            sells = sells || "Scones, sweets, vetkoek";
-          }
-
-          setVendor({ name, area, sells, phone });
-          setReviews(customReviews);
-          setMetrics({ average_score: score, review_count: count });
-        };
-
-        const avgScore = metrics?.average_score || 4.2;
-        const trustPct = Math.round((avgScore / 5) * 100);
-        const reviewCount = metrics?.review_count || 23;
-        const isLoanReady = trustPct >= 70;
-        const activeBlocks = Math.round((trustPct / 100) * 10);
-
-        const generateShareableLink = (phone) => {
-          const activePhone = phone || vendor.phone || "0723456789";
-
-          fetch(`${API_URL}/api/report/create-link`, {
+          fetch(`${API_URL}/review/submit`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone_number: activePhone })
+            body: JSON.stringify({
+              phone_number: reviewTargetPhone,
+              rating: parseInt(reviewRating),
+              review_text: reviewText
+            }),
           })
-          .then(res => res.json())
-          .then(data => {
-            const reportId = data.report_id || "demo_" + Math.random().toString(36).substring(2, 8);
-            const link = `https://kasicred-28bu.onrender.com/view-report.html?id=${reportId}`;
-            prompt("Copy this shareable link for investors or buyers (R30 paywall active):", link);
-          })
-          .catch(() => {
-
-            const fallbackId = "demo_khati";
-            const link = `https://kasicred-28bu.onrender.com/view-report.html?id=${fallbackId}`;
-            prompt("Offline Demo Link:", link);
-          });
+            .then((res) => {
+              if (!res.ok) throw new Error("Failed to submit review");
+              return res.json();
+            })
+            .then(() => {
+              setReviewStatus("Success! Review recorded on-chain via relayer.");
+              setReviewText("");
+              setSubmitting(false);
+            })
+            .catch((err) => {
+              setReviewStatus(err.message || "Submission failed");
+              setSubmitting(false);
+            });
         };
 
+        const avgScore = metrics?.average_score || 0;
+        const trustPct = Math.round((avgScore / 5) * 100);
+        const reviewCount = metrics?.review_count || 0;
+        const isLoanReady = trustPct >= 70;
+        const activeBlocks = Math.round((trustPct / 100) * 10);
 
         return (
           <div
@@ -279,69 +247,93 @@
                 border-radius: 14px; font-weight: 700; font-size: clamp(14px, 3.5vw, 16px); margin-top: 18px; cursor: pointer;
                 box-shadow: 0 4px 0 #000000; transition: transform 0.1s, box-shadow 0.1s;
               }
+              .kc-btn-role {
+                width: 100%; background: #F3C68F; color: #1A1A1A; border: 2px solid #5C3A19; padding: 14px;
+                border-radius: 14px; font-weight: 700; font-size: 15px; margin-top: 12px; cursor: pointer;
+                box-shadow: 0 4px 0 #5C3A19; transition: all 0.1s; text-transform: uppercase; letter-spacing: 0.5px;
+              }
+              .kc-btn-role:hover { background: #FAE1C1; border-color: #000; }
               .kc-btn-white {
                 width: 100%; background: #FFFFFF; color: #5C3A19; border: 2px solid #5C3A19; padding: clamp(12px, 3vw, 15px);
                 border-radius: 14px; font-weight: 700; font-size: clamp(14px, 3.5vw, 16px); margin-top: 16px; cursor: pointer;
                 box-shadow: 0 4px 0 #5C3A19; transition: transform 0.1s, box-shadow 0.1s;
               }
-              .kc-btn-white:active { transform: translateY(2px); box-shadow: 0 2px 0 #5C3A19; }
               .kc-link { color: #1A1A1A; font-weight: 700; text-decoration: underline; cursor: pointer; }
               .kc-error { background: #5C2020; color: #FFD2D2; font-size: 11px; padding: 8px; border-radius: 8px; margin-top: 8px; width: 100%; text-align: center; }
             `}</style>
 
-            {/* 1. LOGIN VIEW */}
+            {/* SHARED HEADER LOGO */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <div style={{ background: "#222222", padding: "4px", borderRadius: "14px", border: "2px solid #1A1A1A", width: 44, height: 44, display: "flex", justifyContent: "center", alignItems: "center", boxSizing: "border-box" }}>
+                <img src="logo.png" alt="KasiCred Logo" style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: "10px" }} />
+              </div>
+              <div className="kc-title" style={{ fontSize: "22px", color: "#1A1A1A" }}>
+                KASICRED
+              </div>
+            </div>
+
+            {/* 0. ROLE SELECTOR VIEW */}
+            {view === "role-select" && (
+              <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2A2A", marginBottom: 20, lineHeight: 1.4 }}>
+                  Turning Daily Cash Trade into Portable, Tamper-Proof Trust. Select your portal to continue:
+                </div>
+
+                <button className="kc-btn-role" onClick={() => { setSelectedRole("business"); setView("login"); }}>
+                  🏪 I am a Business / Vendor
+                </button>
+
+                <button className="kc-btn-role" onClick={() => { setSelectedRole("reviewer"); setView("reviewer-portal"); }}>
+                  ⭐ I am a Customer / Reviewer
+                </button>
+
+                <button className="kc-btn-role" onClick={() => { setSelectedRole("admin"); setView("login"); }}>
+                  🛡️ Platform Admin
+                </button>
+              </div>
+            )}
+
+            {/* 1. LOGIN VIEW (Businesses & Admins) */}
             {view === "login" && (
               <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <div className="kc-title" style={{ fontSize: "clamp(20px, 6vw, 26px)", color: "#1A1A1A", marginBottom: 8 }}>
-                  KASICRED
+                <div className="kc-title" style={{ fontSize: "18px", marginBottom: 4 }}>
+                  {selectedRole === "admin" ? "Admin Portal Login" : "Business Login"}
                 </div>
-
-                <div style={{ background: "#222222", padding: "6px", borderRadius: "20px", border: "3px solid #1A1A1A", marginBottom: 12, width: "clamp(80px, 24vw, 110px)", height: "clamp(80px, 24vw, 110px)", display: "flex", justifyContent: "center", alignItems: "center", boxSizing: "border-box" }}>
-                  <img src="logo.png" alt="KasiCred Logo" style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: "14px" }} />
-                </div>
-
-                <div style={{ fontSize: "clamp(11px, 3vw, 13px)", textAlign: "center", fontWeight: 600, color: "#2A2A2A", marginBottom: 16, padding: "0 8px", lineHeight: 1.4 }}>
-                  Turning Daily Cash Trade into Portable, Tamper-Proof Trust
+                <div style={{ fontSize: "11px", color: "#333", marginBottom: 12, fontWeight: 500 }}>
+                  {selectedRole === "admin" ? "Authorized administrative access only." : <>New Vendor? <span className="kc-link" onClick={() => setView("signup")}>Register here.</span></>}
                 </div>
 
                 {apiError && <div className="kc-error">{apiError}</div>}
 
                 <form onSubmit={handleLogin} style={{ width: "100%" }}>
-                  <label className="kc-field-label">Phone Number / Email</label>
+                  <label className="kc-field-label">Phone Number / ID</label>
                   <input className="kc-input-box" value={form.phone} onChange={update("phone")} placeholder="0712345678" required />
 
                   <label className="kc-field-label">Password</label>
                   <input className="kc-input-box" type="password" value={form.password} onChange={update("password")} placeholder="******" required />
 
                   <button className="kc-btn-green" type="submit" disabled={submitting}>
-                    {submitting ? "Logging in..." : "Login"}
+                    {submitting ? "Authenticating..." : "Login"}
                   </button>
                 </form>
 
-                <div style={{ fontSize: "clamp(12px, 3vw, 13px)", marginTop: 16, color: "#222" }}>
-                  Don’t have an account? <span className="kc-link" onClick={() => setView("signup")}>Register</span>
-                </div>
+                <button onClick={() => { setView("role-select"); setApiError(null); }} style={{ background: "transparent", border: "none", marginTop: 16, fontWeight: 700, cursor: "pointer", fontSize: "12px", textDecoration: "underline" }}>
+                  ◀ Back to Role Selection
+                </button>
               </div>
             )}
 
-            {/* 2. SIGN UP VIEW */}
+            {/* 2. SIGN UP VIEW (Businesses Only - Admins cannot register) */}
             {view === "signup" && (
               <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                  <div style={{ background: "#222222", padding: "4px", borderRadius: "12px", border: "2px solid #1A1A1A", width: 40, height: 40, display: "flex", justifyContent: "center", alignItems: "center", boxSizing: "border-box" }}>
-                    <img src="logo.png" alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: "8px" }} />
-                  </div>
-                  <div className="kc-title" style={{ fontSize: "clamp(18px, 5vw, 22px)", color: "#1A1A1A" }}>
-                    KASICRED
-                  </div>
+                <div className="kc-title" style={{ fontSize: "18px", marginBottom: 2 }}>
+                  Register Business
                 </div>
-
-                <div className="kc-title" style={{ fontSize: "clamp(20px, 5vw, 24px)", color: "#1A1A1A", marginTop: 2 }}>
-                  Create Account
-                </div>
-                <div style={{ fontSize: "clamp(11px, 2.8vw, 12px)", color: "#333", marginBottom: 8, fontWeight: 500 }}>
+                <div style={{ fontSize: "11px", color: "#333", marginBottom: 8, fontWeight: 500 }}>
                   Already Registered? <span className="kc-link" onClick={() => setView("login")}>Log in here.</span>
                 </div>
+
+                {apiError && <div className="kc-error">{apiError}</div>}
 
                 <form onSubmit={handleRegister} style={{ width: "100%" }}>
                   <label className="kc-field-label">Vendor/Stall Name</label>
@@ -363,48 +355,41 @@
                     {submitting ? "Creating..." : "Sign up"}
                   </button>
                 </form>
+
+                <button onClick={() => { setView("role-select"); setApiError(null); }} style={{ background: "transparent", border: "none", marginTop: 12, fontWeight: 700, cursor: "pointer", fontSize: "12px", textDecoration: "underline" }}>
+                  ◀ Back to Role Selection
+                </button>
               </div>
             )}
 
-            {/* 3. DASHBOARD VIEW */}
+            {/* 3. VENDOR DASHBOARD VIEW */}
             {view === "dashboard" && (
               <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                
-                {/* Top Header with Logo and Back Button */}
                 <div style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ background: "#222222", padding: "3px", borderRadius: "10px", border: "2px solid #1A1A1A", width: 34, height: 34, display: "flex", justifyContent: "center", alignItems: "center" }}>
-                      <img src="logo.png" alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: "6px" }} />
-                    </div>
-                    <div className="kc-title" style={{ fontSize: "18px" }}>KASICRED</div>
-                  </div>
-                  <button onClick={() => setView("login")} style={{ background: "#F3C68F", border: "2px solid #5C3A19", padding: "5px 12px", borderRadius: "10px", fontWeight: 700, cursor: "pointer", fontSize: "11px", textTransform: "uppercase" }}>Back ◀</button>
+                  <div className="kc-title" style={{ fontSize: "16px" }}>Vendor Dashboard</div>
+                  <button onClick={() => setView("role-select")} style={{ background: "#F3C68F", border: "2px solid #5C3A19", padding: "4px 10px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "11px", textTransform: "uppercase" }}>Logout ◀</button>
                 </div>
 
                 <div style={{ fontSize: "13px", fontWeight: 700, color: "#222", marginBottom: 10, alignSelf: "flex-start" }}>
-                  Dumela, {vendor.name} 👋
+                  Dumela, {vendor.name || "Vendor"} 👋
                 </div>
 
                 {loading ? (
                   <div style={{ textAlign: "center", padding: "40px 0", fontWeight: 600 }}>Loading dashboard...</div>
                 ) : (
                   <>
-                    {/* Dynamic User Info Card bound to active vendor state */}
                     <div style={{ width: "100%", background: "#F3C68F", border: "2px solid #5C3A19", borderRadius: "16px", padding: "12px 16px", textAlign: "center", marginBottom: 14, boxSizing: "border-box" }}>
-                      <div style={{ fontSize: "16px", fontWeight: 700, color: "#1A1A1A" }}>{vendor.name}</div>
-                      <div style={{ fontSize: "12px", fontWeight: 600, color: "#444", marginTop: 2 }}>{vendor.area}</div>
-                      <div style={{ fontSize: "12px", fontWeight: 500, color: "#555", marginTop: 2, fontStyle: "italic" }}>{vendor.sells}</div>
+                      <div style={{ fontSize: "16px", fontWeight: 700, color: "#1A1A1A" }}>{vendor.name || "Vendor Stall"}</div>
+                      <div style={{ fontSize: "12px", fontWeight: 600, color: "#444", marginTop: 2 }}>{vendor.area || "Location"}</div>
+                      <div style={{ fontSize: "12px", fontWeight: 500, color: "#555", marginTop: 2, fontStyle: "italic" }}>{vendor.sells || "Items sold"}</div>
                     </div>
 
-                    {/* Ratings & Verified Reviews Row */}
                     <div style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 12 }}>
-                      {/* Star Badge */}
-                      <div style={{ flex: 1, background: "#F3C68F", border: "2px solid #5C3A19", borderRadius: "16px", padding: "12px", display: "flex", flexDirection: "column", alignItems: "center", position: "relative" }}>
-                        <div style={{ fontSize: "36px", color: "#FFC700", filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.2))", lineHeight: 1 }}>★</div>
-                        <div className="kc-title" style={{ fontSize: "22px", marginTop: 4, color: "#1A1A1A" }}>{avgScore.toFixed(1)}</div>
+                      <div style={{ flex: 1, background: "#F3C68F", border: "2px solid #5C3A19", borderRadius: "16px", padding: "12px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                        <div style={{ fontSize: "32px", color: "#FFC700", lineHeight: 1 }}>★</div>
+                        <div className="kc-title" style={{ fontSize: "20px", marginTop: 4, color: "#1A1A1A" }}>{avgScore.toFixed(1)}</div>
                       </div>
 
-                      {/* Verified Reviews Circle */}
                       <div style={{ flex: 1, background: "#F3C68F", border: "2px solid #5C3A19", borderRadius: "16px", padding: "12px", display: "flex", flexDirection: "column", alignItems: "center" }}>
                         <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", color: "#333", marginBottom: 4 }}>Verified Reviews</div>
                         <div style={{ width: "42px", height: "42px", borderRadius: "50%", background: "#0047FF", display: "flex", justifyContent: "center", alignItems: "center", color: "#fff", fontWeight: 700, fontSize: "16px", border: "2px solid #000" }}>
@@ -413,61 +398,97 @@
                       </div>
                     </div>
 
-                    {/* Trust Percentage Progress Blocks */}
                     <div style={{ width: "100%", background: "#F3C68F", border: "2px solid #5C3A19", borderRadius: "16px", padding: "12px 14px", marginBottom: 14, boxSizing: "border-box" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                         <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#333" }}>Trust Percentage</span>
                         <span className="kc-title" style={{ fontSize: "16px", color: "#1A1A1A" }}>{trustPct}/100</span>
                       </div>
-
-                      {/* 10 Block Grid */}
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: "4px" }}>
                         {Array.from({ length: 10 }).map((_, idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              height: "18px",
-                              borderRadius: "4px",
-                              backgroundColor: idx < activeBlocks ? "#00B654" : "#D4B08C",
-                              border: "1px solid #5C3A19"
-                            }}
-                          />
+                          <div key={idx} style={{ height: "16px", borderRadius: "4px", backgroundColor: idx < activeBlocks ? "#00B654" : "#D4B08C", border: "1px solid #5C3A19" }} />
                         ))}
                       </div>
                     </div>
 
-                    {/* Loan Ready Status Button */}
-                    <div style={{ width: "100%", backgroundColor: "#00B654", border: "2px solid #000000", borderRadius: "14px", padding: "12px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: "15px", textTransform: "uppercase", letterSpacing: 0.5, boxShadow: "0 3px 0 #000", marginBottom: 16 }}>
+                    <div style={{ width: "100%", backgroundColor: "#00B654", border: "2px solid #000000", borderRadius: "14px", padding: "12px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: "15px", textTransform: "uppercase", boxShadow: "0 3px 0 #000", marginBottom: 16 }}>
                       {isLoanReady ? "Loan Ready" : "Building Trust"}
                     </div>
 
-                    {/* Recent Customer Reviews Box */}
-                    <div style={{ width: "100%", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", marginBottom: 6, color: "#222", alignSelf: "flex-start" }}>
-                      Recent customer reviews
-                    </div>
-                    <div style={{ width: "100%", background: "#F3C68F", border: "2px solid #5C3A19", borderRadius: "16px", padding: "12px", minHeight: "80px", maxHeight: "120px", overflowY: "auto", marginBottom: 16, boxSizing: "border-box" }}>
+                    <div style={{ width: "100%", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", marginBottom: 6, color: "#222", alignSelf: "flex-start" }}>Recent customer reviews</div>
+                    <div style={{ width: "100%", background: "#F3C68F", border: "2px solid #5C3A19", borderRadius: "16px", padding: "12px", minHeight: "70px", maxHeight: "110px", overflowY: "auto", marginBottom: 16, boxSizing: "border-box" }}>
                       {reviews.length === 0 ? (
-                        <div style={{ fontSize: "12px", color: "#555", fontStyle: "italic", textAlign: "center", marginTop: "15px" }}>No reviews yet.</div>
+                        <div style={{ fontSize: "12px", color: "#555", fontStyle: "italic", textAlign: "center", marginTop: "10px" }}>No reviews recorded yet.</div>
                       ) : (
                         reviews.map((r, i) => (
                           <div key={i} style={{ fontSize: "12px", borderBottom: i < reviews.length - 1 ? "1px solid #D4B08C" : "none", paddingBottom: "6px", marginBottom: "6px" }}>
-                            <div style={{ fontWeight: 600, color: "#1A1A1A" }}>"{r.review_text || "Verified Sale Recorded"}"</div>
-                            <div style={{ fontSize: "10px", color: "#555", marginTop: "2px" }}>{r.time} • <span style={{ fontFamily: "monospace" }}>{r.hash ? r.hash.slice(0, 8) : "on-chain"}</span></div>
+                            <div style={{ fontWeight: 600, color: "#1A1A1A" }}>"{r.review_text || "Verified Sale"}"</div>
+                            <div style={{ fontSize: "10px", color: "#555", marginTop: "2px" }}>{r.created_at || "Recent"} • <span style={{ fontFamily: "monospace" }}>{r.tx_hash ? r.tx_hash.slice(0, 8) : "on-chain"}</span></div>
                           </div>
                         ))
                       )}
                     </div>
 
-                    {/* Download PDF Button */}
-                    <div style={{ width: "100%", marginTop: "10px" }}>
-                    <button className="kc-btn-white" onClick={() => generateShareableLink(vendor.phone)}>
-                      Generate Shareable Report Link
+                    <button className="kc-btn-white" onClick={() => window.generateKasiCredPDF(vendor, trustPct, isLoanReady, reviewCount, avgScore, reviews)}>
+                      Download Proof of Business PDF
                     </button>
-                  </div>
                   </>
                 )}
               </div>
             )}
+
+            {/* 4. REVIEWER PORTAL VIEW */}
+            {view === "reviewer-portal" && (
+              <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <div className="kc-title" style={{ fontSize: "18px", marginBottom: 4 }}>Customer Review Portal</div>
+                <div style={{ fontSize: "11px", color: "#333", marginBottom: 12, textAlign: "center" }}>Rate an informal vendor to anchor their trust score on-chain.</div>
+
+                {reviewStatus && <div style={{ background: "#223322", color: "#A3FFA3", fontSize: "11px", padding: "8px", borderRadius: "8px", marginBottom: 10, width: "100%", textAlign: "center" }}>{reviewStatus}</div>}
+
+                <form onSubmit={handleReviewSubmit} style={{ width: "100%" }}>
+                  <label className="kc-field-label">Vendor Phone Number</label>
+                  <input className="kc-input-box" value={reviewTargetPhone} onChange={(e) => setReviewTargetPhone(e.target.value)} placeholder="0712345678" required />
+
+                  <label className="kc-field-label">Star Rating (1 - 5)</label>
+                  <select className="kc-input-box" value={reviewRating} onChange={(e) => setReviewRating(e.target.value)}>
+                    <option value="5">★★★★★ (5 Stars - Excellent)</option>
+                    <option value="4">★★★★☆ (4 Stars - Good)</option>
+                    <option value="3">★★★☆☆ (3 Stars - Average)</option>
+                    <option value="2">★★☆☆☆ (2 Stars - Fair)</option>
+                    <option value="1">★☆☆☆☆ (1 Star - Poor)</option>
+                  </select>
+
+                  <label className="kc-field-label">Review / Feedback</label>
+                  <textarea className="kc-input-box" rows="3" value={reviewText} onChange={(e) => setReviewText(e.target.value)} placeholder="Great fresh vetkoek every morning!" required style={{ resize: "none" }} />
+
+                  <button className="kc-btn-green" type="submit" disabled={submitting}>
+                    {submitting ? "Submitting on-chain..." : "Submit Verified Review"}
+                  </button>
+                </form>
+
+                <button onClick={() => { setView("role-select"); setReviewStatus(null); }} style={{ background: "transparent", border: "none", marginTop: 16, fontWeight: 700, cursor: "pointer", fontSize: "12px", textDecoration: "underline" }}>
+                  ◀ Back to Role Selection
+                </button>
+              </div>
+            )}
+
+            {/* 5. ADMIN PORTAL VIEW */}
+            {view === "admin-portal" && (
+              <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+                <div className="kc-title" style={{ fontSize: "18px", marginBottom: 6 }}>Admin Control Center</div>
+                <div style={{ fontSize: "12px", color: "#333", marginBottom: 20 }}>Welcome, Platform Administrator. System relayer and database operations are active.</div>
+
+                <div style={{ width: "100%", background: "#F3C68F", border: "2px solid #5C3A19", borderRadius: "14px", padding: "16px", marginBottom: 16, boxSizing: "border-box" }}>
+                  <div style={{ fontWeight: 700, fontSize: "14px", marginBottom: 4 }}>Relayer Wallet Status</div>
+                  <div style={{ fontSize: "12px", color: "#333" }}>Celo Network: Connected (Sepolia)</div>
+                  <div style={{ fontSize: "12px", color: "#333" }}>Gas Pool Balance: Active</div>
+                </div>
+
+                <button className="kc-btn-white" onClick={() => setView("role-select")}>
+                  Logout Admin
+                </button>
+              </div>
+            )}
+
           </div>
         );
       }

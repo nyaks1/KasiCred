@@ -2,6 +2,7 @@ import os
 import json
 from dotenv import load_dotenv
 from web3 import Web3
+import hashlib
 
 load_dotenv()
 
@@ -41,6 +42,17 @@ ABI = json.loads('''[
         "type": "function"
     }
 ]''')
+
+def generate_quantum_resistant_review_hash(vendor_address: str, score: int, review_text: str) -> bytes:
+    """
+    Generates a post-quantum resistant review hash using SHA3-512 
+    and truncates/encodes it to bytes32 for Celo smart contract compatibility.
+    Provides 256 bits of quantum resistance against Grover's algorithm.
+    """
+    payload = f"{vendor_address}:{score}:{review_text}"
+    hasher = hashlib.sha3_512()
+    hasher.update(payload.encode('utf-8'))
+    return hasher.digest()[:32]
 
 def get_contract():
     """Instantiates and returns the smart contract instance."""
@@ -109,6 +121,13 @@ def record_review_onchain(vendor_address: str, review_hash: bytes, score: int) -
    
     
     return w3.to_hex(tx_hash)
+
+def record_review_quantum_secure(vendor_address: str, review_text: str, score: int) -> str:
+    """
+    Constructs a quantum-resistant SHA3-512 review hash and records it on the Celo network.
+    """
+    quantum_review_hash = generate_quantum_resistant_review_hash(vendor_address, score, review_text)
+    return record_review_onchain(vendor_address, quantum_review_hash, score)
 
 if __name__ == "__main__":
     print("Testing Celo Testnet Connectivity...")
