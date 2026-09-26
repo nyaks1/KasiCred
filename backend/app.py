@@ -14,6 +14,7 @@ from backend.celo_client import (
     record_review_onchain,
     verify_connection,
 )
+from backend.whatsapp_webhook import router as whatsapp_router
 
 log = logging.getLogger("kasicred")
 
@@ -82,6 +83,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(whatsapp_router)
 
 
 # =====================================================================
